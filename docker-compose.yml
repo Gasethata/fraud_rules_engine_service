@@ -1,0 +1,104 @@
+services:
+  kafka_broker:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: broker
+    env_file: 
+        - .env
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka_broker:9093
+
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://192.168.229.138:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+      KAFKA_MESSAGE_MAX_BYTES: 500000000          # 500MB
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 500000000   # 500MB
+
+
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID}
+    ports:
+      - "9092:9092"
+    networks:
+      - fraud_detection
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    
+    # volumes:
+      # - ./kafka-data:/var/lib/kafka/data
+      # - ./kafka/entrypoint.sh:/entrypoint.sh
+      # - /var/run/docker.sock:/var/run/docker.sock
+
+    # command: ["/bin/bash", "/entrypoint.sh"]
+
+  kafka_topic:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    container_name: topic
+    env_file: 
+        - .env
+    depends_on:
+        kafka_broker:
+          condition: service_healthy
+    networks:
+      - fraud_detection
+    #command: python3 kafka/topic.py
+
+  transaction_producer:
+    build:
+      context: .
+      dockerfile: ./transactions_producer/Dockerfile
+    container_name: producer
+    env_file: 
+        - .env
+    depends_on:
+        kafka_topic:
+          condition: service_completed_successfully
+    networks:
+      - fraud_detection
+
+  transaction_consumer:
+    build:
+      context: .
+      dockerfile: ./fraud_engine/Dockerfile
+    container_name: consumer
+    env_file: 
+        - .env
+    depends_on:
+        kafka_topic:
+          condition: service_completed_successfully
+    networks:
+      - fraud_detection
+
+  postgres:
+    image: postgres:17
+    container_name: fraud_database
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    env_file: 
+        - .env
+    ports:
+      - 5432:5432
+    volumes:
+      - ./database/db/init:/docker-entrypoint-initdb.d
+    networks:
+      - fraud_detection
+
+
+networks:
+   fraud_detection:
+       driver: bridge

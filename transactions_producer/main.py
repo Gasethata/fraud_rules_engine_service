@@ -14,12 +14,12 @@ def main():
     
 
     producer = TransactionProducer(host, port, topic)
-    df = pd.read_csv(transactions)
+    df = pd.read_csv(transactions, index_col=0)
 
     for _, row in df.iterrows():
         transaction = row.to_dict()
         #transaction["transaction_id"] = transaction["trans_num"]
-        producer.publish(key=str(transaction.get("TransactionID", "")), value=transaction)
+        producer.publish(key=str(transaction.get("trans_num", "")), value=transaction)
         #producer.publish(key=transaction["transaction_id"],value=transaction)
         time.sleep(delay)
 

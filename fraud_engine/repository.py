@@ -66,12 +66,26 @@ class Repository:
     # -------------------------
     # CONTEXT QUERIES
     # -------------------------
-    def count_last_30min(self, cc_num):
+    def trans_frequency(self, cc_num, trans_time, minutes):
         with self.conn.cursor() as cur:
             cur.execute("""
                 SELECT COUNT(*)
                 FROM transactions
                 WHERE cc_num = %s
-                AND trans_date_trans_time >= NOW() - INTERVAL '30 minutes'
-            """, (cc_num,))
+                AND trans_date_trans_time >= %s - make_interval(mins => %s)
+            """, (cc_num, trans_time, minutes))
             return cur.fetchone()[0]
+        
+    def get_last_n_amounts(self, cc_num, n):
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT amt
+                FROM transactions
+                WHERE cc_num = %s
+                ORDER BY trans_date_trans_time DESC
+                LIMIT %s
+            """, (cc_num, n))
+            rows = cur.fetchall()
+            return [float(row[0]) for row in rows]
+        
+ 

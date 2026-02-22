@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 class TransactionProducer:
     def __init__(self, host: int, port: int, topic: str):
         self.topic = topic
-        self.producer = Producer({'bootstrap.servers': f"{host}:{port}"})
+        self.producer = Producer({'bootstrap.servers': f"{host}:{port}",
+                                  'acks': 1})
 
     def delivery_report(self, err, msg):
         if err:

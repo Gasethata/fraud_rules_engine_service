@@ -1,7 +1,7 @@
 description,field,condition,threshold,threshold_window,modifier,action,is_active
 High absolute amount,amt,>,2000,NULL,NULL,flag,true
 Sudden increase vs last 5 avg,amt,avg_last_n,2,5,NULL,flag,true
-Rapid transaction frequency,cc_num,count_last_minutes,5,10,NULL,flag,true
+Rapid transaction frequency,cc_num,trans_frequency,5,10,NULL,flag,true
 High-risk category,category,IN,NULL,NULL,high_risk_categories,flag,true
 Weekend high amount,amt,>,1000,NULL,weekend,flag,true
 Odd transaction hour,hour,hour_not_between,8,19,NULL,flag,true

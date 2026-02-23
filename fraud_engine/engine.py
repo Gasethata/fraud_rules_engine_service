@@ -11,8 +11,6 @@ class FraudEngine:
         # Operator map 
         self.operators = {
             ">": self._greater_than,
-            "<": self._less_than,
-            "!=": self._not_equal,
             "IN": self._in_operator,
             "trans_frequency": self._trans_frequency,
             "avg_last_n": self._avg_last_n,
@@ -70,13 +68,13 @@ class FraudEngine:
     # OPERATORS
     # -------------------------
     def _greater_than(self, transaction, rule, context):
-        return float(transaction[rule["field"]]) > float(rule["threshold"])
+        if float(transaction[rule["field"]]) <= float(rule["threshold"]):
+            return False
+        
+        if rule.get("modifier") == "weekend":
+            return context["is_weekend"] == True
 
-    def _less_than(self, transaction, rule, context):
-        return float(transaction[rule["field"]]) < float(rule["threshold"])
-
-    def _not_equal(self, transaction, rule, context):
-        return transaction[rule["field"]] != rule["threshold"]
+        return True
 
     def _trans_frequency(self, transaction, rule, context):
 

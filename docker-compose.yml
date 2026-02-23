@@ -7,10 +7,10 @@ services:
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka_broker:9093
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka_broker:${CONTROLLER_PORT}
 
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://192.168.229.138:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:${PORT},CONTROLLER://0.0.0.0:${CONTROLLER_PORT}
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${HOST}:${PORT}
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
@@ -54,7 +54,6 @@ services:
           condition: service_healthy
     networks:
       - fraud_detection
-    #command: python3 kafka/topic.py
 
   transaction_producer:
     build:
@@ -63,6 +62,7 @@ services:
     container_name: producer
     env_file: 
         - .env
+    profiles: ["demo"]
     depends_on:
         kafka_topic:
           condition: service_completed_successfully

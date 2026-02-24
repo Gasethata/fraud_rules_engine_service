@@ -1,6 +1,6 @@
 ## Testing
-### Overview
-The project implements a **layered testing strategy** to validate both:
+#### Overview
+The project implements a layered testing strategy to validate both:
 
 - Business logic correctness (Unit Tests)
 - End-to-end system behavior (Integration Tests)
@@ -14,7 +14,7 @@ Testing is structured to reflect this separation of concerns:
 - **Unit Tests** validate fraud rule logic in isolation.
 - **Integration Tests** validate full pipeline execution using real services.
 
-### Testing Structure
+#### Testing Structure
 tests/
   unit/test_engine.py
   integration/integration_test.py

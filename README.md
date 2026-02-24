@@ -16,5 +16,5 @@ Testing is structured to reflect this separation of concerns:
 
 #### Testing Structure
 tests/
-  unit/test_engine.py
-  integration/integration_test.py
+unit/test_engine.py
+integration/integration_test.py

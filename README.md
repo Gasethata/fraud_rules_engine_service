@@ -1,18 +1,22 @@
-## Setup For Tests
+## Testing
+## Overview
+The project implements a **layered testing strategy** to validate both:
 
-python3 -m venv venv
-source venv/bin/activate
-pip install -r tests/requirements.txt
+- Business logic correctness (Unit Tests)
+- End-to-end system behavior (Integration Tests)
 
-## Run Unit Tests
-## Testing the core logic of the engine and validating the rules behaviour. This should show Unit Coverage of +90%
-pytest -m unit --cov=fraud_engine.engine
+The system under test follows this architecture:
 
-## Run Integration Tests
-## Make sure the pipeline was not pre-build (was not ran before testing else containers will have cache data)
-## If the containers were ran before the tests, then make sure to remove them with (docker compose down -v)
-## This test does not show coverage as it run outside Pytest, and test intergration of individual components
-docker compose up
-pytest -m integration
+Kafka → Fraud Engine (Consumer) → PostgreSQL
 
+Testing is structured to reflect this separation of concerns:
 
+- **Unit Tests** validate fraud rule logic in isolation.
+- **Integration Tests** validate full pipeline execution using real services.
+
+## Testing Structure
+tests/
+├── unit/
+│ └── test_engine.py
+└── integration/
+└── integration_test.py

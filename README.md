@@ -166,15 +166,46 @@ Create virtual environment to install dependencies and acticate it. Then install
     pip install -r tests/requirements.txt
 ```
 
-## Run Unit Tests
-## Testing the core logic of the engine and validating the rules behaviour. This should show Unit Coverage of +90%
-pytest -m unit --cov=fraud_engine.engine
+### Running Tests
+#### Run Unit Tests
+```
+    pytest -m unit --cov=fraud_engine.engine
+```
 
-## Run Integration Tests
-## Make sure the pipeline was not pre-build (was not ran before testing else containers will have cache data)
-## If the containers were ran before the tests, then make sure to remove them with (docker compose down -v)
-## This test does not show coverage as it run outside Pytest, and test intergration of individual components
-docker compose up
-pytest -m integration
+#### Run Integration Tests
+- Make sure the pipeline was not pre-build (was not ran before testing else containers will have cache data)
+- If the containers were ran before the tests, then make sure to remove them with (docker compose down -v)
+- This test does not show coverage as it run outside Pytest, and test intergration of individual components
+```
+    docker compose up -d
+    pytest -m integration
+```
+
+## View the Results
+### Use the API to retrieve the flagged transactions
+
+#### Through the web
+```
+    http://<the-ip-set-on-the-env>:8000/flagged
+```
+#### On the terminal
+```
+    curl http://<the-ip-set-on-the-env>:8000/flagged
+```
+
+### Directly from the Database
+
+```
+    docker exec -it postgres psql -U postgres -d frauddb
+    SELECT * FROM flagged_transactions;
+```
+
+## Dataset Used
+
+This is a simulated credit card transaction dataset containing legitimate and fraud transactions from the duration 1st Jan 2019 - 31st Dec 2020. It covers credit cards of 1000 customers doing transactions with a pool of 800 merchants.
+
+Link: *https://www.kaggle.com/datasets/kartik2112/fraud-detection?resource=download&select=fraudTrain.csv*
+
+
 
 

@@ -15,6 +15,6 @@ Testing is structured to reflect this separation of concerns:
 - **Integration Tests** validate full pipeline execution using real services.
 
 #### Testing Structure
-pytest.ini *(pytest path setup and markers)*
-tests/unit/test_engine.py
-tests/integration/integration_test.py
+- pytest.ini *(pytest path setup and markers)*
+- tests/unit/test_engine.py
+- tests/integration/integration_test.py

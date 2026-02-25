@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+python-jose
+
+psycopg2-binary
+
+bcrypt==3.2.2
+passlib[bcrypt]==1.7.4

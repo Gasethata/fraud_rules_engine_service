@@ -62,7 +62,6 @@ services:
     container_name: producer
     env_file: 
         - .env
-    profiles: ["demo"]
     depends_on:
         kafka_topic:
           condition: service_completed_successfully
@@ -95,6 +94,26 @@ services:
       - 5432:5432
     volumes:
       - ./database/db/init:/docker-entrypoint-initdb.d
+    networks:
+      - fraud_detection
+
+  api:
+    build:
+      context: .
+      dockerfile: ./api/Dockerfile
+    container_name: fraud_api
+    env_file: 
+        - .env
+    ports:
+      - "8000:8000"
+    environment:
+      # POSTGRES_HOST: database
+      # POSTGRES_DB: ivtdb
+      # POSTGRES_USER: postgres
+      # POSTGRES_PASSWORD: postgres
+      JWT_SECRET: supersecretkey
+    depends_on:
+      - postgres
     networks:
       - fraud_detection
 

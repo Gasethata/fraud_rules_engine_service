@@ -177,7 +177,7 @@ Create virtual environment to install dependencies and acticate it. Then install
 - If the containers were ran before the tests, then make sure to remove them with (docker compose down -v)
 - This test does not show coverage as it run outside Pytest, and test intergration of individual components
 ```
-    docker compose up -d
+    docker compose up --scale transaction_producer=0 --build -d
     pytest -m integration
 ```
 

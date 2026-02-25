@@ -39,7 +39,6 @@ CREATE TABLE fraud_rules (
     field VARCHAR(50) NOT NULL,
     condition VARCHAR(50) NOT NULL,
     threshold NUMERIC,              -- numeric values
-    threshold_type VARCHAR(50),     -- e.g: static, avg_last_n, count_last_n
     threshold_window INT,           -- N value (e.g: last 5 transactions, last 10 mins)
     modifier VARCHAR(50),           -- weekend, odd_hours, etc.
     "action" VARCHAR(50) NOT NULL,
@@ -48,13 +47,10 @@ CREATE TABLE fraud_rules (
 );
 
 -- -------------------------------------------
--- Audit Log For All Evaluations
+-- Users
 -- -------------------------------------------
-CREATE TABLE audit_evaluations (
+CREATE TABLE users (
     id SERIAL PRIMARY KEY,
-    transaction_id VARCHAR(50),
-    evaluated_at TIMESTAMP DEFAULT NOW(),
-    rule_id INT,
-    evaluation_result BOOLEAN,
-    details JSONB
+    username VARCHAR(50) UNIQUE NOT NULL,
+    hashed_password TEXT NOT NULL
 );

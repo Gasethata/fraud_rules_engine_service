@@ -22,7 +22,6 @@ services:
       KAFKA_MESSAGE_MAX_BYTES: 500000000          # 500MB
       KAFKA_REPLICA_FETCH_MAX_BYTES: 500000000   # 500MB
 
-
       CLUSTER_ID: ${KAFKA_CLUSTER_ID}
     ports:
       - "9092:9092"
@@ -96,6 +95,12 @@ services:
       - ./database/db/init:/docker-entrypoint-initdb.d
     networks:
       - fraud_detection
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   api:
     build:
@@ -106,16 +111,18 @@ services:
         - .env
     ports:
       - "8000:8000"
-    environment:
+    #environment:
       # POSTGRES_HOST: database
       # POSTGRES_DB: ivtdb
       # POSTGRES_USER: postgres
       # POSTGRES_PASSWORD: postgres
-      JWT_SECRET: supersecretkey
     depends_on:
-      - postgres
+        postgres:
+          condition: service_healthy 
+    restart: on-failure
     networks:
       - fraud_detection
+
 
 
 networks:

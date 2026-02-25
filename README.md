@@ -183,14 +183,72 @@ Create virtual environment to install dependencies and acticate it. Then install
 
 ## View the Results
 ### Use the API to retrieve the flagged transactions
+Built with FastAPI, JWT authentication, and retrieving the data from the a PostgreSQL database table.
+
+- Framework: FastAPI (Python 3.11)
+- Authentication: JWT tokens with bcrypt password hashing
+- Database: PostgreSQL with psycopg2
+
+Below are the variables used for the API, they are set in the .env file, they can be changed as per your needs.
+Admin User (created automatically on startup)
+```
+ADMIN_USERNAME=
+ADMIN_PASSWORD=
+```
+
+JWT Configuration
+```
+JWT_SECRET=
+ACCESS_TOKEN_EXPIRE_MINUTES=
+```
 
 #### Through the web
+Currently running locally but can be set to run at a specific host
 ```
-    http://<the-ip-set-on-the-env>:8000/flagged
+    http://localhost:8000/docs
 ```
-#### On the terminal
+##### Login to get the token
 ```
-    curl http://<the-ip-set-on-the-env>:8000/flagged
+Endpoint: POST /login
+```
+You should see the request body with username and password. Enter the ADMIN_USERNAME and ADMIN_PASSWORD configured in the .env.
+The response will be a access_token and a token_type.
+
+##### Use the token to authenticate the request
+Copy the token generated above.
+
+##### Use the Swagger UI
+
+Click the "Authorize" button at the top right.
+Enter your token in the format: `Bearer <your-token>` or just the token.
+Click "Authorize" and then "Close".
+Now you can test protected endpoints directly from the UI.
+
+###### Protected Endpoints (Require Authentication)
+
+`GET	/flagged`	                 Get all flagged transactions (with pagination at 100)
+`GET	/flagged/{transaction_id}`   Get specific transaction by ID
+
+###### Public Endpoints
+
+`POST	/login`	    Authenticate and get JWT token
+`GET	/health`	Health check endpoint
+
+#### Through the command-line interface
+
+```
+# 1. Login
+curl -X POST http://localhost:8000/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "your_password"}'
+
+# 2. Get flagged transactions (using the token)
+curl -X GET http://localhost:8000/flagged \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+
+# 3. Get specific transaction
+curl -X GET http://localhost:8000/flagged/TX123456 \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
 ```
 
 ### Directly from the Database

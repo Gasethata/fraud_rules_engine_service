@@ -153,6 +153,86 @@ This will start Kafka Producer -> Kafka -> Fraud Engine + Kafka Consumer -> Post
     docker compose logs -f fraud_engine
 ```
 
+## View the Results
+### Use the API to retrieve the flagged transactions
+Built with FastAPI, JWT authentication, and retrieving the data from the a PostgreSQL database table.
+
+- Framework: FastAPI (Python 3.11)
+- Authentication: JWT tokens with bcrypt password hashing
+- Database: PostgreSQL with psycopg2
+
+Below are the variables used for the API, they are set in the .env file, they can be changed as per your needs.
+Admin User (created automatically on startup)
+```
+ADMIN_USERNAME=
+ADMIN_PASSWORD=
+```
+
+JWT Configuration
+```
+JWT_SECRET=
+ACCESS_TOKEN_EXPIRE_MINUTES=
+```
+
+#### Through the web
+Currently running locally but can be set to run at a specific host
+```
+http://localhost:8000/docs
+```
+##### Login to get the token
+```
+Endpoint: POST /login
+```
+Click on ```Try it out``` and you should see the request body with username and password. Enter the ADMIN_USERNAME and ADMIN_PASSWORD configured in the .env then click ```Execute```.
+The response will be a access_token and a token_type.
+
+##### Use the token to authenticate the request
+Copy the token generated above.
+
+##### Use the Swagger UI
+
+Click the "Authorize" button at the top right.
+Enter your token in the format: `Bearer <your-token>` or just the token.
+Click "Authorize" and then "Close".
+Now you can test protected endpoints directly from the UI.
+
+###### Protected Endpoints (Require Authentication)
+
+- `GET	/flagged`	                 Get all flagged transactions (with pagination at 100). 
+Click on ```Try it out``` the ```Execute```, the response should be all the flagged transactions in json format.
+- `GET	/flagged/{transaction_id}`   Get specific transaction by ID
+Click on ```Try it out```, enter the transaction ID then click ```Execute```. The response should be the transaction details of the ID you entered.
+
+###### Public Endpoints
+
+- `POST	/login`	    Authenticate and get JWT token
+- `GET	/health`	Health check endpoint
+
+#### Through the command-line interface
+
+```
+# 1. Login
+curl -X POST http://localhost:8000/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "<user>", "password": "<password>"}'
+
+# 2. Get flagged transactions (using the token)
+curl -X GET http://localhost:8000/flagged \
+  -H "Authorization: Bearer <the token here>"
+
+# 3. Get specific transaction
+curl -X GET http://localhost:8000/flagged/<transaction_id> \
+  -H "Authorization: Bearer <the token here>"
+```
+
+### Directly from the Database
+
+```
+    docker exec -it postgres psql -U postgres -d frauddb
+    SELECT * FROM flagged_transactions;
+```
+
+
 ## Testing
 The project implements a layered testing strategy to validate both:
 
@@ -192,90 +272,14 @@ Create virtual environment to install dependencies and acticate it. Then install
 
 #### Run Integration Tests
 - Make sure the pipeline was not pre-build (was not ran before testing else containers will have cache data)
-- If the containers were ran before the tests, then make sure to remove them with (docker compose down -v)
+- If the containers were ran before the tests, then make sure to remove them with ```docker compose down -v```
 - This test does not show coverage as it run outside Pytest, and test intergration of individual components
-- These test are running from `test/integration/integration_test.py`
+- The teste are running from `test/integration/integration_test.py`
 ```
     docker compose up --scale transaction_producer=0 --build -d
     pytest -m integration
 ```
 
-## View the Results
-### Use the API to retrieve the flagged transactions
-Built with FastAPI, JWT authentication, and retrieving the data from the a PostgreSQL database table.
-
-- Framework: FastAPI (Python 3.11)
-- Authentication: JWT tokens with bcrypt password hashing
-- Database: PostgreSQL with psycopg2
-
-Below are the variables used for the API, they are set in the .env file, they can be changed as per your needs.
-Admin User (created automatically on startup)
-```
-ADMIN_USERNAME=
-ADMIN_PASSWORD=
-```
-
-JWT Configuration
-```
-JWT_SECRET=
-ACCESS_TOKEN_EXPIRE_MINUTES=
-```
-
-#### Through the web
-Currently running locally but can be set to run at a specific host
-```
-http://localhost:8000/docs
-```
-##### Login to get the token
-```
-Endpoint: POST /login
-```
-You should see the request body with username and password. Enter the ADMIN_USERNAME and ADMIN_PASSWORD configured in the .env.
-The response will be a access_token and a token_type.
-
-##### Use the token to authenticate the request
-Copy the token generated above.
-
-##### Use the Swagger UI
-
-Click the "Authorize" button at the top right.
-Enter your token in the format: `Bearer <your-token>` or just the token.
-Click "Authorize" and then "Close".
-Now you can test protected endpoints directly from the UI.
-
-###### Protected Endpoints (Require Authentication)
-
-- `GET	/flagged`	                 Get all flagged transactions (with pagination at 100)
-- `GET	/flagged/{transaction_id}`   Get specific transaction by ID
-
-###### Public Endpoints
-
-- `POST	/login`	    Authenticate and get JWT token
-- `GET	/health`	Health check endpoint
-
-#### Through the command-line interface
-
-```
-# 1. Login
-curl -X POST http://localhost:8000/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "<user>", "password": "<password>"}'
-
-# 2. Get flagged transactions (using the token)
-curl -X GET http://localhost:8000/flagged \
-  -H "Authorization: Bearer <the token here>"
-
-# 3. Get specific transaction
-curl -X GET http://localhost:8000/flagged/<transaction_id> \
-  -H "Authorization: Bearer <the token here>"
-```
-
-### Directly from the Database
-
-```
-    docker exec -it postgres psql -U postgres -d frauddb
-    SELECT * FROM flagged_transactions;
-```
 
 ## Dataset Used
 

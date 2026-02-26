@@ -1,6 +1,15 @@
-from confluent_kafka import Consumer
+"""
+Confluent Kafka Consumer class:
+    Initialize the connection - Depends on Host IP and Port
+    Subscribe to the topic - validate the topic
+    Consume events from the topic - All the transactions in the topic are streamed
+    Close connection - Empty and flushes the cache, and terminate the connection
+"""
+
 import json, sys
 import logging
+from confluent_kafka import Consumer
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -14,13 +23,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class TransactionConsumer:
+    """Consumer calls"""
     def __init__(self, host: int, port: int, topic: str):
+        """Initialization"""
         self.topic = topic
         self.consumer = Consumer({'bootstrap.servers': f"{host}:{port}",
                                   'group.id': 'consumer-group-1',
                                   'auto.offset.reset': 'earliest'})
 
     def subscribe(self):
+        """Validate the topic"""
         try:
             self.consumer.subscribe([self.topic])
             logger.info("Kafka consumer subscribed successfully.")
@@ -29,6 +41,7 @@ class TransactionConsumer:
             raise
 
     def poll(self):
+        """Consumer events from the topic"""
         trn = self.consumer.poll(timeout=1.0)
         
         if trn is None:
@@ -40,7 +53,7 @@ class TransactionConsumer:
             value = json.loads(trn.value().decode("utf-8")) #trn.value()
             key = trn.key().decode('utf-8') if trn.key() else None
             
-            return key, value #this is what I will pass to the egine for comparison with the rules
+            return key, value #this is what is passed to the egine for comparison with the rules
         except Exception as e:
             logger.info(f"Failed to get the transaction{trn.topic()}[{trn.partition()}] offset {trn.offset()}: {e}")
             raise

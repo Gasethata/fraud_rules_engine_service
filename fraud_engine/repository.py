@@ -1,16 +1,21 @@
+"""
+Database queries.
+    - All the used queries and thier logic.
+    - Returns the queries results.
+"""
+
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
 
 class Repository:
-
+    """Repository class"""
     def __init__(self, db_config):
+        """Initialization"""
         self.conn = psycopg2.connect(**db_config)
 
-    # -------------------------
-    # RULES
-    # -------------------------
     def fetch_active_rules(self):
+        """Fetch all rules from the DB"""
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
                 SELECT *
@@ -19,10 +24,8 @@ class Repository:
             """)
             return cur.fetchall()
 
-    # -------------------------
-    # TRANSACTIONS
-    # -------------------------
     def save_transaction(self, transaction):
+        """Save the transactions from Kafka into the DB"""
         with self.conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO transactions (
@@ -48,10 +51,8 @@ class Repository:
             ))
         self.conn.commit()
 
-    # -------------------------
-    # FLAGS
-    # -------------------------
     def save_flag(self, transaction_id, rule_id, reason):
+        """Save the flagged transactions"""
         with self.conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO flagged_transactions (
@@ -63,10 +64,8 @@ class Repository:
             """, (transaction_id, rule_id, reason))
         self.conn.commit()
 
-    # -------------------------
-    # CONTEXT QUERIES
-    # -------------------------
     def trans_frequency(self, cc_num, trans_time, minutes):
+        """Context needed for the frequency rule"""
         with self.conn.cursor() as cur:
             cur.execute("""
                 SELECT COUNT(*)
@@ -77,6 +76,7 @@ class Repository:
             return cur.fetchone()[0]
         
     def get_last_n_amounts(self, cc_num, n):
+        """Get the amounts for n transactions"""
         with self.conn.cursor() as cur:
             cur.execute("""
                 SELECT amt

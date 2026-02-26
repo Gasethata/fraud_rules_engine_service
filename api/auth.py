@@ -1,24 +1,33 @@
+"""
+Authentication module for JWT token handling and user verification.
+
+Provides functions for:
+    - Password hashing/verification with bcrypt
+    - JWT token creation and validation
+    - Database connection management
+    - Current user extraction from requests
+"""
+
 import os
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
-
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-import psycopg2
-from psycopg2.extras import RealDictCursor 
 
 
-# Use environment variables with better defaults
+logger = logging.getLogger(__name__)
+
+
 SECRET_KEY = os.getenv("JWT_SECRET")
 if not SECRET_KEY:
     raise ValueError("JWT_SECRET environment variable is not set")
 
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))  # 24 hours
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "600"))  # set to 24 hours in the env file
 
-#oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 security = HTTPBearer(auto_error=False) 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -39,33 +48,34 @@ def create_access_token(data: Dict[str, Any]) -> str:
 
 def authenticate_user(username: str, password: str, connection) -> Optional[Dict[str, Any]]:
     """Authenticate user and return user info if valid"""
-    conn = connection
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT id, username, hashed_password FROM users WHERE username = %s",
-            (username,),
-        )
-        user = cur.fetchone()
-        cur.close()
 
-        if not user:
-            return None
+    with connection as conn:
+        with conn.cursor() as cur:
+            # get the user from the db
+            cur.execute(
+                "SELECT id, username, hashed_password FROM users WHERE username = %s",
+                (username,),
+            )
+            user = cur.fetchone()
 
-        # With RealDictCursor, user is a dict
-        user_id = user["id"]
-        db_username = user["username"]
-        hashed_password = user["hashed_password"]
+            if not user:
+                return None
 
-        if not verify_password(password, hashed_password):
-            return None
+            # user is a dict as we using RealDictCursor
+            user_id = user["id"]
+            db_username = user["username"]
+            hashed_password = user["hashed_password"]
 
-        return {"id": user_id, "username": db_username}
-    finally:
-        conn.close()  # Ensure connection is closed even if error occurs
+            # validate the hashed password
+            if not verify_password(password, hashed_password):
+                return None
+
+            return {"id": user_id, "username": db_username}
+
 
 async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)) -> str:
     """Get current authenticated user from JWT token"""
+    # Exceptions for incorrect credentials
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid authentication credentials",

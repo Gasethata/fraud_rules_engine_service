@@ -1,15 +1,28 @@
-from fastapi import FastAPI, Depends, HTTPException, status
-import psycopg2
-from psycopg2.extras import RealDictCursor
+"""
+Main FastAPI application with endpoint definitions.
+
+Handles:
+    - API route definitions (/health, /login, /flagged)
+    - Database queries for transaction retrieval
+    - Startup initialization (admin user creation)
+    - Authentication dependency injection
+"""
+
 import os
+import logging
+import psycopg2
 from typing import List
 from contextlib import contextmanager
-
+from passlib.context import CryptContext
+from psycopg2.extras import RealDictCursor
+from fastapi import FastAPI, Depends, HTTPException, status
 from schemas import Token, LoginRequest, FlaggedTransaction
 from auth import authenticate_user, create_access_token, get_current_user
-from passlib.context import CryptContext
 
 
+logger = logging.getLogger(__name__)
+
+#API description
 app = FastAPI(
     title="Fraud Rule Engine API",
     description="API for retrieving flagged transactions",
@@ -20,14 +33,14 @@ app = FastAPI(
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Validate required environment variables at startup
+# API admin user credentials
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
 if not ADMIN_USERNAME or not ADMIN_PASSWORD:
     raise ValueError("ADMIN_USERNAME and ADMIN_PASSWORD must be set")
 
-# Database configuration
+# Database connection variables
 db_config = {
     "host": os.getenv("HOST"),
     "database": os.getenv("POSTGRES_DB"),
@@ -39,7 +52,7 @@ db_config = {
 
 # Validate database config
 for key, value in db_config.items():
-    if key != "port" and value is None:  # port has default
+    if key != "port" and value is None:
         raise ValueError(f"Database configuration {key} is not set")
 
 
@@ -47,6 +60,7 @@ for key, value in db_config.items():
 def get_db_connection():
     """Context manager for database connections"""
     conn = None
+    # Connect to the db or raise an error if not connected
     try:
         conn = psycopg2.connect(**db_config)
         yield conn
@@ -63,13 +77,13 @@ def create_admin_if_not_exists():
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cur:
-                # Check if admin exists
+                # Check if admin user exists
                 cur.execute(
                     "SELECT id FROM users WHERE username = %s",
                     (ADMIN_USERNAME,)
                 )
                 user_exists = cur.fetchone()
-
+                # Insert user is it does not exisyt
                 if not user_exists:
                     hashed_password = pwd_context.hash(ADMIN_PASSWORD)
                     cur.execute(
@@ -77,21 +91,21 @@ def create_admin_if_not_exists():
                         (ADMIN_USERNAME, hashed_password),
                     )
                     conn.commit()
-                    print("Admin user created successfully.")
+                    logger.info("Admin user created successfully.")
                 else:
-                    print("Admin user already exists.")
+                    logger.info("Admin user already exists.")
     except Exception as e:
-        print(f"Error creating admin user: {e}")
-        # Don't raise - allow app to start even if admin creation fails
-        # The endpoint will still work for existing users
+        logger.error(f"Error creating admin user: {e}")
+        raise
+        # Raise the error as we currently only have 1 expected user
 
 
 @app.on_event("startup")
 def startup():
     """Initialize application on startup"""
-    print("Starting Fraud Rule Engine API...")
+    logger.info("Starting Fraud Rule Engine API...")
     create_admin_if_not_exists()
-    print("Startup complete")
+    logger.info("Startup complete")
 
 
 @app.get("/health", tags=["Health"])
@@ -150,20 +164,18 @@ def get_flagged_transactions(current_user: str = Depends(get_current_user), limi
                         transaction_id=row["transaction_id"],
                         reason=row["reason"],
                         flagged_at=row["flagged_at"],
-                        rule_ids=row.get("rule_ids")  # Safe access if column exists
+                        rule_ids=row.get("rule_ids") 
                     )
                     for row in rows
                 ]
 
     except psycopg2.Error as e:
-        print(f"Database error in /flagged: {e}")
+        logger.info(f"Database error in /flagged: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error retrieving transactions"
         )
-
-
-# Optional: Add a specific endpoint for a single transaction
+    
 @app.get("/flagged/{transaction_id}", response_model=FlaggedTransaction, tags=["Transactions"])
 def get_flagged_transaction(transaction_id: str, current_user: str = Depends(get_current_user)):
     """Get a specific flagged transaction by ID"""
@@ -193,7 +205,7 @@ def get_flagged_transaction(transaction_id: str, current_user: str = Depends(get
                 )
 
     except psycopg2.Error as e:
-        print(f"Database error: {e}")
+        logger.info(f"Database error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error retrieving transaction"

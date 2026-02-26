@@ -1,5 +1,11 @@
-import pandas as pd
-import time, sys, os, logging, json
+"""
+Main script that runs the Fraud Engine
+    - Get the repository (database queries) results
+    - Get the evaluation config fom engine
+    - Run the evaluation
+"""
+import sys, os, logging
+from psycopg2.extras import RealDictCursor
 from kafka_consumer import TransactionConsumer
 from repository import Repository
 from engine import FraudEngine
@@ -19,7 +25,9 @@ def main():
         "host": host,
         "database": db,
         "user": db_user,
-        "password": db_password}
+        "password": db_password,
+        #"cursor_factory": RealDictCursor,  # Return dicts for easier handling
+        }
 
     consumer = TransactionConsumer(host, port, topic)
     consumer.subscribe()
@@ -28,14 +36,14 @@ def main():
     rules = repo.fetch_active_rules()
     engine = FraudEngine(rules, repo)
 
+    # get the transaction from the consumer and ran it through the rules
     try:
         while True:
             data = consumer.poll()
             if not data:
                continue    
             key, value = data
-            #logger.info(f"Key: {key}, Value: {value}")
-            transaction = value #json.loads(msg.value().decode("utf-8"))
+            transaction = value 
 
             triggered = engine.process(transaction)
 

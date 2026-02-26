@@ -33,13 +33,7 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-    
-    # volumes:
-      # - ./kafka-data:/var/lib/kafka/data
-      # - ./kafka/entrypoint.sh:/entrypoint.sh
-      # - /var/run/docker.sock:/var/run/docker.sock
 
-    # command: ["/bin/bash", "/entrypoint.sh"]
 
   kafka_topic:
     build:
@@ -111,19 +105,12 @@ services:
         - .env
     ports:
       - "8000:8000"
-    #environment:
-      # POSTGRES_HOST: database
-      # POSTGRES_DB: ivtdb
-      # POSTGRES_USER: postgres
-      # POSTGRES_PASSWORD: postgres
     depends_on:
         postgres:
           condition: service_healthy 
     restart: on-failure
     networks:
       - fraud_detection
-
-
 
 networks:
    fraud_detection:

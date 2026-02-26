@@ -1,7 +1,7 @@
 """
-Confluent Kafka Prodyucer class:
+Confluent Kafka Producer class:
     Initialize the connection - Depends on Host IP and Port
-    Handle delivary report - Checks for actual messages/streams
+    Handle delivery report - Checks for actual transactions/streams
     Publish transactions to the Kafka topic - Depends on the availability of the Kafka topic
     Close connection - Empty and flushes the cache, and terminate the connection
 """
@@ -21,22 +21,25 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class TransactionProducer:
+    """Initialize the class"""
     def __init__(self, host: int, port: int, topic: str):
         self.topic = topic
         self.producer = Producer({'bootstrap.servers': f"{host}:{port}",
                                   'acks': 1})
 
     def delivery_report(self, err, msg):
+        """Events delivery report"""
         if err:
-            print(f"Delivery failed: {err}")
+            logger.error(f"Delivery failed: {err}")
         else:
-            print(f"Message delivered to {msg.topic()} [{msg.partition()}]")
+            logger.info(f"Transaction delivered to topic:{msg.topic()}  on partition:[{msg.partition()}]")
 
     def publish(self, key: str, value: dict):
+        """Publish events to the topic"""
         self.producer.produce(
             topic=self.topic,
             key=key,
-            value=json.dumps(value).encode("utf-8"), #json.loads(value).decode("utf-8"),
+            value=json.dumps(value).encode("utf-8"),
             callback=self.delivery_report
         )
         self.producer.poll(0)

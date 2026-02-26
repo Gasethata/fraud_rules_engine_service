@@ -1,10 +1,13 @@
 import ast
+import logging
 from datetime import datetime
 
+logger = logging.getLogger(__name__)
 
 class FraudEngine:
-
+    """Fraud engine class"""
     def __init__(self, rules, repository):
+        """Initialization"""
         self.rules = rules
         self.repo = repository
 
@@ -17,12 +20,10 @@ class FraudEngine:
             "hour_not_between": self._hour_not_between,
         }
 
-    # -------------------------
-    # MAIN ENTRY
-    # -------------------------
+    # Main engine process
     def process(self, transaction):
+        """Get the transaction, run it through the rules, then raise if fraud"""
 
-        # Build context once
         context = self._build_context(transaction)
 
         triggered = []
@@ -33,7 +34,7 @@ class FraudEngine:
             if operator and operator(transaction, rule, context):
                 triggered.append(rule)
 
-        # Save transaction first
+        # Save first
         self.repo.save_transaction(transaction)
 
         if triggered:
@@ -47,27 +48,27 @@ class FraudEngine:
 
         return triggered
 
-    # -------------------------
-    # CONTEXT
-    # -------------------------  
+    # Context preparations for evaluations
     def _build_context(self, transaction):
+        """Prepare context"""
         return {
             "hour": self._extract_hour(transaction),
             "is_weekend": self._is_weekend(transaction),
         }
 
     def _extract_hour(self, transaction):
+        """Get the hour"""
         dt = datetime.strptime(transaction["trans_date_trans_time"],"%Y-%m-%d %H:%M:%S")
         return dt.hour
 
     def _is_weekend(self, transaction):
+        """Check if weekend"""
         dt = datetime.strptime(transaction["trans_date_trans_time"],"%Y-%m-%d %H:%M:%S")
         return dt.weekday() >= 5
 
-    # -------------------------
-    # OPERATORS
-    # -------------------------
+    # Operations from the rules
     def _greater_than(self, transaction, rule, context):
+        """check is the amount is > than the given threshold and if it is weekend or not"""
         if float(transaction[rule["field"]]) <= float(rule["threshold"]):
             return False
         
@@ -77,7 +78,7 @@ class FraudEngine:
         return True
 
     def _trans_frequency(self, transaction, rule, context):
-
+        """Check how often the transactions where made"""
         trans_time = datetime.strptime(transaction["trans_date_trans_time"],"%Y-%m-%d %H:%M:%S")
 
         count = self.repo.trans_frequency(
@@ -89,7 +90,7 @@ class FraudEngine:
         return (count + 1) > int(rule["threshold"])
     
     def _avg_last_n(self, transaction, rule, context):
-
+        """Check the amount of the average n transactions"""
         last_n = self.repo.get_last_n_amounts(
             transaction["cc_num"],
             int(rule["threshold_window"])
@@ -104,7 +105,7 @@ class FraudEngine:
             float(rule["threshold"]) * avg)
 
     def _hour_not_between(self, transaction, rule, context):
-
+        """Check the time a transaction was made"""
         start = int(rule["threshold"])        
         end = int(rule["threshold_window"]) 
 
@@ -113,7 +114,7 @@ class FraudEngine:
         return not (start <= hour <= end)
     
     def _in_operator(self, transaction, rule, context):
-
+        """Check transaction merchant category"""
         category_sets = {
             "high_risk_categories": [
                 "shopping_net",

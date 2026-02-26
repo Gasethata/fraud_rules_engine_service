@@ -1,3 +1,12 @@
+"""
+Pydantic models for request/response validation.
+
+Defines the structure for:
+    - Login requests and token responses
+    - Flagged transaction data serialization
+    - Automatic request validation and response formatting
+"""
+
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, List
@@ -21,5 +30,5 @@ class FlaggedTransaction(BaseModel):
     class Config:
         from_attributes = True
         json_encoders = {
-            datetime: lambda v: v.isoformat()  # Custom datetime encoding
+            datetime: lambda v: v.isoformat()
         }

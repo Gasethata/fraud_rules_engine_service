@@ -1,15 +1,18 @@
-#!/user/bin/env python3
+"""
+Kafka topic creation logic inside the topic container.
+    - ran by main.py
+    - connects to the kafka broker container
+"""
 
-import os , sys
 import logging
-import subprocess, time
+import time
 from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka import KafkaException, KafkaError
 
 logger = logging.getLogger(__name__)
 
-def create_topic(topic_name: str, host: str, port: str, admin_user: str, admin_pass: str):
-
+def create_topic(topic_name: str, host: str, port: str):
+    """Connect to Kafka broke and create a topic"""
 
     conf = {
         "bootstrap.servers": f"{host}:{port}",
@@ -18,25 +21,26 @@ def create_topic(topic_name: str, host: str, port: str, admin_user: str, admin_p
 
     admin_client = AdminClient(conf)
 
+    # check if the broker is ready
     while True:
         try:
             admin_client.list_topics(timeout=5)
-            print("Broker is ready for connections...")
+            logger.info("Broker is ready for connections...")
             break
         except KafkaException:
-            print("Waiting for broker to be up...")
+            logger.info("Waiting for broker to be up...")
             time.sleep(2)
-
+     # create a new topic
     topic = NewTopic(topic_name, num_partitions=1, replication_factor=1)   
     futures = admin_client.create_topics([topic])
 
     for topic, future in futures.items():
         try:
             future.result()
-            print(f"Topic {topic} created")
+            logger.info(f"Topic {topic} created")
         except KafkaException as e:
             if e.args[0].code() == KafkaError.TOPIC_ALREADY_EXISTS:
-                print(f"Topic {topic_name} already exists")
+                logger.error(f"Topic {topic_name} already exists")
             else:
                 raise
 

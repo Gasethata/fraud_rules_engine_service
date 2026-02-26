@@ -1,3 +1,8 @@
+"""
+main script to run the producer container
+    - uses kafka_producer.py script to publish the transactions into Kafka.
+"""
+
 import pandas as pd
 import time, sys, os, logging
 from kafka_producer import TransactionProducer
@@ -16,11 +21,10 @@ def main():
     producer = TransactionProducer(host, port, topic)
     df = pd.read_csv(transactions, index_col=0)
 
+    # read the transactions from the csv file row by row
     for _, row in df.iterrows():
         transaction = row.to_dict()
-        #transaction["transaction_id"] = transaction["trans_num"]
         producer.publish(key=str(transaction.get("trans_num", "")), value=transaction)
-        #producer.publish(key=transaction["transaction_id"],value=transaction)
         time.sleep(delay)
 
     producer.close()

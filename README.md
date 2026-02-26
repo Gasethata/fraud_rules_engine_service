@@ -15,7 +15,15 @@ The system is designed to demonstrate:
 - Unit and Integration testing strategy
 
 ### Architecture
+This engine is microservices and every service runs on its own container.
+Below are all the containers, and all run through a `docker compose` for multi-services control. 
 
+- api (creates a REST API using FastAPI)
+- postgres (from the database folder - creates a PostgreSQL database)
+- broker (creates Kafka single note cluster)
+- topic (from the kafka_broker folder - creates a topic in the above Kafka broker)
+- consumer (from fraud_engine folder - consumes transactions from the above Kafka topic)
+- producer (from transactuions_producer folder - publishes transactions from upstream into Kafka topic)
 
 ### Components
 
@@ -40,7 +48,8 @@ The system is designed to demonstrate:
 ## How It Works
 
 ### Transaction Ingestion
-
+This is done in the `transaction_producer` container.
+The producer is fed a simulated transaction data from `transaction_producer/data/***.csv`
 Transactions are published to a Kafka topic (`transactions`) using Kafka Producer
 
 Each transaction includes fields such as:
@@ -65,7 +74,7 @@ When a transaction is consumed:
 5. Triggered rules are collected.
 6. If rules trigger, record is inserted into `flagged_transactions` table of the database.
 
-Rules are stored in the database and include:
+Rules are stored in the database during database initialization and include the below columns:
 
 - field
 - condition
@@ -74,6 +83,9 @@ Rules are stored in the database and include:
 - description
 
 This allows dynamic rule modification without changing application code.
+
+The rules are in a file called `database/db/init/fraud_rules.csv`.
+The other two files are for creating the schema `database/db/init/1schema.sql` and loading the rules `database/db/init/2load_rules.sql`.
 
 ### Database Layer
 
@@ -116,6 +128,7 @@ This enables visibility into detected fraud transactions.
 ```
 
 ### Build Containers
+Make sure that this variable `HOST=` in the .env is set to the host's IP address. This is to make sure that all the services are reachable through thier ports on the the host machine
 
 ```
     docker compose build
@@ -127,7 +140,7 @@ This enables visibility into detected fraud transactions.
 This ensures that the transactions publication simulation is activated.
 
 ```
-    docker compose --profiles demo up -d
+    docker compose up -d
 ```
 
 This will start Kafka Producer -> Kafka -> Fraud Engine + Kafka Consumer -> PostgreSQL -> API
@@ -168,6 +181,9 @@ Create virtual environment to install dependencies and acticate it. Then install
 
 ### Running Tests
 #### Run Unit Tests
+- These test uses mocks to simulate the expected behaviour.
+- They are running from `test/unit/unit_test.py`
+
 ```
     pytest -m unit --cov=fraud_engine.engine
 ```
@@ -176,6 +192,8 @@ Create virtual environment to install dependencies and acticate it. Then install
 - Make sure the pipeline was not pre-build (was not ran before testing else containers will have cache data)
 - If the containers were ran before the tests, then make sure to remove them with (docker compose down -v)
 - This test does not show coverage as it run outside Pytest, and test intergration of individual components
+- Test data from `database/db/init/testdata.csv`.
+- These test are running from `test/integration/integration_test.py`
 ```
     docker compose up --scale transaction_producer=0 --build -d
     pytest -m integration
@@ -205,7 +223,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES=
 #### Through the web
 Currently running locally but can be set to run at a specific host
 ```
-    http://localhost:8000/docs
+http://localhost:8000/docs
 ```
 ##### Login to get the token
 ```
@@ -226,13 +244,13 @@ Now you can test protected endpoints directly from the UI.
 
 ###### Protected Endpoints (Require Authentication)
 
-`GET	/flagged`	                 Get all flagged transactions (with pagination at 100)
-`GET	/flagged/{transaction_id}`   Get specific transaction by ID
+- `GET	/flagged`	                 Get all flagged transactions (with pagination at 100)
+- `GET	/flagged/{transaction_id}`   Get specific transaction by ID
 
 ###### Public Endpoints
 
-`POST	/login`	    Authenticate and get JWT token
-`GET	/health`	Health check endpoint
+- `POST	/login`	    Authenticate and get JWT token
+- `GET	/health`	Health check endpoint
 
 #### Through the command-line interface
 
@@ -240,15 +258,15 @@ Now you can test protected endpoints directly from the UI.
 # 1. Login
 curl -X POST http://localhost:8000/login \
   -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "your_password"}'
+  -d '{"username": "<user>", "password": "<password>"}'
 
 # 2. Get flagged transactions (using the token)
 curl -X GET http://localhost:8000/flagged \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+  -H "Authorization: Bearer <the token here>"
 
 # 3. Get specific transaction
-curl -X GET http://localhost:8000/flagged/TX123456 \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+curl -X GET http://localhost:8000/flagged/<transaction_id> \
+  -H "Authorization: Bearer <the token here>"
 ```
 
 ### Directly from the Database

@@ -35,15 +35,15 @@ Below are all the containers, and all run through a `docker compose` for multi-s
 
 ### Technology Stack
 
-| Component        | Technology              |
-|------------------|-------------------------|
-| Language         | Python 3.11+            |
-| Event Streaming  | Apache Kafka            |
-| Database         | PostgreSQL              |
-| ORM / DB Access  | psycopg2                |
-| API Framework    | FastAPI                 |
-| Testing          | Pytest                  |
-| Containerization | Docker & Docker Compose |
+| Component        | Technology                                  |
+|------------------|---------------------------------------------|
+| Language         | Python 3.11+                                |
+| Event Streaming  | Apache Kafka                                |
+| Database         | PostgreSQL 17+                              |
+| ORM / DB Access  | psycopg2                                    |
+| API Framework    | FastAPI                                     |
+| Testing          | Pytest                                      |
+| Containerization | Docker (27.5.1+) & Docker Compose (2.32.4+) |
 
 ## How It Works
 

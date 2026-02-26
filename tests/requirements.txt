@@ -2,5 +2,4 @@ pytest
 pytest-cov
 psycopg2-binary
 confluent-kafka
-httpx==0.24.0
-fastapi
+python-dotenv

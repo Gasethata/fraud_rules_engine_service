@@ -13,7 +13,7 @@ def main():
 
     host = os.getenv("HOST","broke host")
     port = os.getenv("PORT","broker port")
-    topic = os.getenv("TOPIC","opic name")
+    topic = os.getenv("TOPIC","topic name")
     transactions = os.getenv("TRANSACTIONS_SIMULATION_FILE","transactions file")
     delay = float(os.getenv("TRANSACTION_DELAY_SIMULATION","transactions delay"))
     

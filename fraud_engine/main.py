@@ -26,7 +26,6 @@ def main():
         "database": db,
         "user": db_user,
         "password": db_password,
-        #"cursor_factory": RealDictCursor,  # Return dicts for easier handling
         }
 
     consumer = TransactionConsumer(host, port, topic)

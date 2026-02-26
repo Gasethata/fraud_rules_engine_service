@@ -1,35 +1,43 @@
-import pytest
+"""
+Unit tests coverage
+    - Use pytest to test inividual units of the Engine
+    - Mocks the database queries that would be ran on the Engine
+"""
+
+import pytest, logging
 from fraud_engine.engine import FraudEngine
 from datetime import datetime
 
+logger = logging.getLogger(__name__)
+
 pytestmark = pytest.mark.unit
 
-# ---------------------------
 # Mock Repository
-# ---------------------------
 class MockRepo:
     def __init__(self):
+        """Initialization"""
         self.saved_transactions = []
         self.saved_flags = []
 
     def trans_frequency(self, cc_num, trans_time, minutes):
-        return 5  # controlled value for velocity tests
+        """Mimic 5 transactions"""
+        return 5  
 
     def get_last_n_amounts(self, cc_num, n):
+        """Mimic amounts for last n transaction"""
         return [10, 10, 10, 10, 10]
 
     def save_transaction(self, transaction):
+        """Mimic persist transactions"""
         self.saved_transactions.append(transaction)
 
     def save_flag(self, transaction_id, rule_ids, reasons):
+        """Mimic flagging the fraud transaction"""
         self.saved_flags.append((transaction_id, rule_ids, reasons))
 
-
-# ---------------------------
-# Common Transaction Fixture
-# ---------------------------
 @pytest.fixture
 def base_transaction():
+    """The base transaction to be used for the tests"""
     return {
         "trans_num": "abc123",
         "trans_date_trans_time": "2020-12-31 10:00:00",
@@ -41,10 +49,8 @@ def base_transaction():
         "last": "Doe"
     }
 
-# ---------------------------
-# Test: High Absolute Amount
-# ---------------------------
 def test_high_absolute_amount(base_transaction):
+    """Test the high amount rule"""
     rule = {
         "id": 1,
         "description": "High absolute amount",
@@ -60,11 +66,8 @@ def test_high_absolute_amount(base_transaction):
 
     assert len(triggered) == 1
 
-
-# ---------------------------
-# Test: Hour Not Between
-# ---------------------------
 def test_hour_not_between():
+    """Test the transaction time rule"""
     rule = {
         "id": 2,
         "description": "Odd transaction hour",
@@ -89,11 +92,8 @@ def test_hour_not_between():
 
     assert len(triggered) == 1
 
-
-# ---------------------------
-# Test: Velocity Rule
-# ---------------------------
 def test_trans_frequency(base_transaction):
+    """Test the transaction frequency rule"""
     rule = {
         "id": 3,
         "description": "Rapid frequency",
@@ -110,15 +110,12 @@ def test_trans_frequency(base_transaction):
 
     # count_last_minutes returns 4
     # so 4 previous + current = 5
-    # should trigger if using (count + 1) >= threshold
-    print(f"Triggered: {triggered}")
+    # the rule:  (count + 1) >= threshold
+    logger.info(f"Triggered: {triggered}")
     assert len(triggered) == 1
 
-
-# ---------------------------
-# Test: Average Rule
-# ---------------------------
 def test_average_rule(base_transaction):
+    """Test the average n transactions"""
     rule = {
         "id": 4,
         "description": "Sudden increase vs last 5 avg",
@@ -134,16 +131,13 @@ def test_average_rule(base_transaction):
     # average = 10
     # threshold multiplier = 2
     # 2 * 10 = 20
-    # amt = 3000 → should trigger
+    # triggered: amt = 3000
     triggered = engine.process(base_transaction)
 
     assert len(triggered) == 1
 
-
-# ---------------------------
-# Test: No Trigger Case
-# ---------------------------
 def test_no_trigger():
+    """Test non fraud transaction"""
     rule = {
         "id": 5,
         "description": "High absolute amount",
@@ -168,10 +162,8 @@ def test_no_trigger():
 
     assert len(triggered) == 0
 
-# ---------------------------
-# Test: Weekend High Amount
-# ---------------------------
 def test_weekend_high_amount_positive():
+    """Test high amount on weeken rule"""
     rule = {
         "id": 5,
         "description": "Weekend high amount",
@@ -196,10 +188,8 @@ def test_weekend_high_amount_positive():
 
     assert len(triggered) == 1
 
-# ---------------------------
-# Test: High-risk Category
-# ---------------------------
 def test_high_risk_category_positive():
+    """Test high risk merchant category"""
     rule = {
         "id": 4,
         "description": "High-risk category",

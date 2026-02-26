@@ -25,14 +25,6 @@ db = os.getenv("POSTGRES_DB","database name")
 db_user = os.getenv("POSTGRES_USER","db username")
 db_password = os.getenv("POSTGRES_PASSWORD","db username")
 
-
-# DB_CONFIG = {
-#     "dbname": "frauddb",
-#     "user": "postgres",
-#     "password": "postgres",
-#     "host": "localhost",
-#     "port": 5432
-# }
 db_config = {
         "host": host,
         "database": db,

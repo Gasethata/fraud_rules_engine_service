@@ -49,7 +49,9 @@ Below are all the containers, and all run through a `docker compose` for multi-s
 
 ### Transaction Ingestion
 This is done in the `transaction_producer` container.
-The producer is fed a simulated transaction data from `transaction_producer/data/***.csv`
+The producer is fed a simulated transaction data from `transaction_producer/data/testdata.csv`
+This data was extracted from Kaggle dataset as described below. 
+The file is too big and cannot be pushed to git. It can be downloaded and placed at `transaction_producer/data/` if you would like to run the would dataset, it contains more than 1 million transactions. Make sure to amend the variable in .env if you change the file `TRANSACTIONS_SIMULATION_FILE`.
 Transactions are published to a Kafka topic (`transactions`) using Kafka Producer
 
 Each transaction includes fields such as:
@@ -192,7 +194,6 @@ Create virtual environment to install dependencies and acticate it. Then install
 - Make sure the pipeline was not pre-build (was not ran before testing else containers will have cache data)
 - If the containers were ran before the tests, then make sure to remove them with (docker compose down -v)
 - This test does not show coverage as it run outside Pytest, and test intergration of individual components
-- Test data from `database/db/init/testdata.csv`.
 - These test are running from `test/integration/integration_test.py`
 ```
     docker compose up --scale transaction_producer=0 --build -d

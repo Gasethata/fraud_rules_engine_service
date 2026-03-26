@@ -150,7 +150,7 @@ This will start Kafka Producer -> Kafka -> Fraud Engine + Kafka Consumer -> Post
 ### View logs
 
 ```
-    docker compose logs -f fraud_engine
+    docker compose logs -f transaction_consumer
 ```
 
 ## View the Results

@@ -49,7 +49,7 @@ def main():
     topic = os.getenv("TOPIC")
 
     db_config = {
-        "host": host,
+        "host": os.getenv("POSTGRES_HOST"),
         "database": os.getenv("POSTGRES_DB"),
         "user": os.getenv("POSTGRES_USER"),
         "password": os.getenv("POSTGRES_PASSWORD"),

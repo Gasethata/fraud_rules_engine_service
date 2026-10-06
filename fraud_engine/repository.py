@@ -33,7 +33,7 @@ db_retry = retry(
 
 
 class Repository:
-    """Repository class — all database interactions."""
+    """Repository class - all database interactions."""
 
     def __init__(self, db_config):
         self.db_config = db_config

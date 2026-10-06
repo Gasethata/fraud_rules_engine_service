@@ -53,6 +53,7 @@ jobs:
           cat > .env <<EOF
           HOST=kafka_broker
           PORT=9092
+          POSTGRES_HOST=postgres
           CONTROLLER_PORT=9093
           TOPIC=transactions
           KAFKA_CLUSTER_ID=${{ secrets.KAFKA_CLUSTER_ID }}

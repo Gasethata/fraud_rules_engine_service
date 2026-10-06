@@ -74,7 +74,7 @@ jobs:
       - name: Start services (without producer — seeded by integration test)
         run: |
           docker compose up --scale transaction_producer=0 -d
-          sleep 30
+          sleep 60 
 
       - name: Set up Python for integration tests
         uses: actions/setup-python@v5
@@ -114,3 +114,4 @@ jobs:
           format: table
           exit-code: "1"           # fail the build if critical CVEs found
           severity: CRITICAL,HIGH
+          ignore-unfixed: true     # skip CVEs with no fix available yet

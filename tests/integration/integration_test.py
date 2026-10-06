@@ -41,7 +41,7 @@ ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
 DB_CONFIG = {
-    "host": HOST,
+    "host": "localhost",
     "database": os.getenv("POSTGRES_DB", "frauddb"),
     "user": os.getenv("POSTGRES_USER"),
     "password": os.getenv("POSTGRES_PASSWORD"),
@@ -51,7 +51,7 @@ DB_CONFIG = {
 
 SAMPLE_TRANSACTION = {
     "trans_num": "intg-test-001",
-    "trans_date_trans_time": "2020-12-26 02:00:00",  # Saturday + odd hour — triggers rules
+    "trans_date_trans_time": "2020-12-26 02:00:00",  # Saturday + odd hour - triggers rules
     "cc_num": "9999999999999999",
     "merchant": "Test Merchant",
     "category": "entertainment",
@@ -210,7 +210,7 @@ def test_full_pipeline_transaction_flagged():
 def test_flagged_list_returns_pagination_metadata():
     """
     GET /v1/flagged must return a paginated response with total, limit,
-    offset, and items — not a flat list.
+    offset, and items - not a flat list.
     """
     token = get_api_token()
     response = requests.get(

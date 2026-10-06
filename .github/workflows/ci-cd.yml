@@ -53,6 +53,7 @@ jobs:
           cat > .env <<EOF
           HOST=kafka_broker
           PORT=9092
+          E_PORT=29092
           POSTGRES_HOST=postgres
           CONTROLLER_PORT=9093
           TOPIC=transactions

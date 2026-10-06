@@ -51,7 +51,7 @@ jobs:
       - name: Create .env from CI secrets
         run: |
           cat > .env <<EOF
-          HOST=localhost
+          HOST=kafka_broker
           PORT=9092
           CONTROLLER_PORT=9093
           TOPIC=transactions
@@ -74,7 +74,10 @@ jobs:
       - name: Start services (without producer — seeded by integration test)
         run: |
           docker compose up --scale transaction_producer=0 -d
-          sleep 60 
+            echo "Waiting for services to be healthy..."
+            timeout 120 bash -c 'until docker compose ps | grep -E "fraud_api.*running|fraud_api.*healthy"; do sleep 5; done'
+            timeout 120 bash -c 'until docker compose ps | grep -E "consumer.*running"; do sleep 5; done'
+            echo "All services ready" 
 
       - name: Set up Python for integration tests
         uses: actions/setup-python@v5

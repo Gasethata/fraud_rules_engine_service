@@ -32,8 +32,8 @@ pytestmark = pytest.mark.integration
 # -------------------------------------------------------
 # Config from environment
 # -------------------------------------------------------
-HOST = "localhost"
-PORT = os.getenv("PORT", "9092")
+ADVERTISED_HOST = os.getenv("ADVERTISED_HOST", "localhost")
+E_PORT = os.getenv("E_PORT", "29092")
 TOPIC = os.getenv("TOPIC", "transactions")
 API_URL = "http://localhost:8000"
 
@@ -81,7 +81,7 @@ def get_api_token():
 
 def publish_transaction(transaction: dict):
     """Publish a single transaction to the Kafka topic."""
-    producer = Producer({"bootstrap.servers": f"localhost:{PORT}", "acks": 1})
+    producer = Producer({"bootstrap.servers": f"localhost:{E_PORT}", "acks": 1})
     producer.produce(
         topic=TOPIC,
         key=transaction["trans_num"],

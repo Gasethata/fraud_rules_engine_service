@@ -76,7 +76,7 @@ jobs:
         run: |
           docker compose up --scale transaction_producer=0 -d
             echo "Waiting for postgres..."
-            timeout 90 bash -c 'until docker exec fraud_database pg_isready -U $POSTGRES_USER -d frauddb; do sleep 3; done'
+            timeout 90 bash -c 'until docker exec fraud_database pg_isready -U $POSTGRES_USER; do sleep 3; done'
             echo "Waiting for API..."
             timeout 90 bash -c 'until curl -sf http://localhost:8000/health/live; do sleep 3; done'
             echo "Waiting for consumer..."

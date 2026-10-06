@@ -51,7 +51,6 @@ jobs:
       - name: Create .env from CI secrets
         run: |
           cat > .env <<EOF
-          HOST=kafka_broker
           PORT=9092
           POSTGRES_HOST=postgres
           CONTROLLER_PORT=9093
@@ -70,6 +69,8 @@ jobs:
           EOF
 
       - name: Build Docker images
+        env:
+          HOST: kafka_broker 
         run: docker compose build
 
       - name: Start services (without producer — seeded by integration test)

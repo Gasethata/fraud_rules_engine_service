@@ -1,0 +1,116 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # -------------------------------------------------------
+  # Job 1: Unit tests and coverage
+  # Runs fast on every push and pull request - uses mocks.
+  # -------------------------------------------------------
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install test dependencies
+        run: pip install -r tests/requirements.txt
+
+      - name: Run unit tests with coverage
+        run: pytest -m unit --cov=fraud_engine.engine --cov-report=xml --cov-report=term
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+        continue-on-error: true  # don't fail the build if codecov is unavailable
+
+  # -------------------------------------------------------
+  # Job 2: Integration tests
+  # Spins up the full stack via Docker Compose - Runs only on push
+  # -------------------------------------------------------
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create .env from CI secrets
+        run: |
+          cat > .env <<EOF
+          HOST=localhost
+          PORT=9092
+          CONTROLLER_PORT=9093
+          TOPIC=transactions
+          KAFKA_CLUSTER_ID=${{ secrets.KAFKA_CLUSTER_ID }}
+          TRANSACTIONS_SIMULATION_FILE=/transactions_producer/data/testdata.csv
+          TRANSACTION_DELAY_SIMULATION=0.01
+          POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB=frauddb
+          POSTGRES_PORT=5432
+          ADMIN_USERNAME=${{ secrets.ADMIN_USERNAME }}
+          ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          ACCESS_TOKEN_EXPIRE_MINUTES=60
+          EOF
+
+      - name: Build Docker images
+        run: docker compose build
+
+      - name: Start services (without producer — seeded by integration test)
+        run: |
+          docker compose up --scale transaction_producer=0 -d
+          sleep 30
+
+      - name: Set up Python for integration tests
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install test dependencies
+        run: pip install -r tests/requirements.txt
+
+      - name: Run integration tests
+        run: pytest -m integration -v
+
+      - name: Collect logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  # -------------------------------------------------------
+  # Job 3: Security scan
+  # Scans the filesystem for known CVEs using Trivy - Runs in parallel with unit tests.
+  # -------------------------------------------------------
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          exit-code: "1"           # fail the build if critical CVEs found
+          severity: CRITICAL,HIGH

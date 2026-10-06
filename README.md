@@ -277,7 +277,7 @@ Create virtual environment to install dependencies and acticate it. Then install
 - The teste are running from `test/integration/integration_test.py`
 ```
     docker compose up --scale transaction_producer=0 --build -d
-    pytest -m integration
+    pytest -m integration -v
 ```
 
 

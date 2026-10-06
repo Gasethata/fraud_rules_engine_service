@@ -1,23 +1,21 @@
 """
-Confluent Kafka Producer class:
-    Initialize the connection - Depends on Host IP and Port
-    Handle delivery report - Checks for actual transactions/streams
-    Publish transactions to the Kafka topic - Depends on the availability of the Kafka topic
-    Close connection - Empty and flushes the cache, and terminate the connection
+Confluent Kafka Producer:
+    - Initialize connection to the Kafka broker
+    - Handle delivery reports (confirm message delivery)
+    - Publish transactions to the Kafka topic
+    - Close connection cleanly (flush buffered messages before exit)
 """
 
 from confluent_kafka import Producer
 import json, logging, sys
 
+# Structured JSON logging consistent with other services
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s::: %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%s',
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-        ]
-    )   
-
+    format='{"timestamp": "%(asctime)s", "level": "%(levelname)s", "service": "transaction-producer", "message": "%(message)s"}',
+    datefmt="%Y-%m-%dT%H:%M:%SZ",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
 logger = logging.getLogger(__name__)
 
 class TransactionProducer:
@@ -47,5 +45,5 @@ class TransactionProducer:
     def close(self):
         """Flush and close connections"""
         if self.producer:
-            self.producer.flush
+            self.producer.flush()
         logger.info("Producer client connection closed.")

@@ -32,7 +32,7 @@ pytestmark = pytest.mark.integration
 # -------------------------------------------------------
 # Config from environment
 # -------------------------------------------------------
-HOST = os.getenv("HOST", "localhost")
+HOST = "localhost"
 PORT = os.getenv("PORT", "9092")
 TOPIC = os.getenv("TOPIC", "transactions")
 API_URL = "http://localhost:8000"
@@ -164,8 +164,8 @@ def test_flagged_requires_auth():
 
 def test_full_pipeline_transaction_flagged():
     """
-    End-to-end test: publish a high-risk transaction → wait for the engine
-    to consume and flag it → verify it appears in the DB and via the API.
+    End-to-end test: publish a high-risk transaction - wait for the engine
+    to consume and flag it - verify it appears in the DB and via the API.
 
     The transaction is designed to trigger multiple rules:
     - High absolute amount (9999.99)

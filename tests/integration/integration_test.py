@@ -81,7 +81,7 @@ def get_api_token():
 
 def publish_transaction(transaction: dict):
     """Publish a single transaction to the Kafka topic."""
-    producer = Producer({"bootstrap.servers": f"{HOST}:{PORT}", "acks": 1})
+    producer = Producer({"bootstrap.servers": f"localhost:{PORT}", "acks": 1})
     producer.produce(
         topic=TOPIC,
         key=transaction["trans_num"],

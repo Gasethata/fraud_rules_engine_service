@@ -52,6 +52,7 @@ jobs:
         run: |
           cat > .env <<EOF
           HOST=kafka_broker
+          ADVERTISED_HOST=localhost
           PORT=9092
           E_PORT=29092
           POSTGRES_HOST=postgres

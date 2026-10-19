@@ -26,6 +26,10 @@ from psycopg2.extras import RealDictCursor
 from fastapi import FastAPI, Depends, HTTPException, Request, Response, status
 from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
 
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
 from schemas import Token, LoginRequest, FlaggedTransaction, PaginatedFlaggedTransactions
 from auth import authenticate_user, create_access_token, get_current_user
 
@@ -136,6 +140,8 @@ DB_POOL_AVAILABLE = Gauge(
 # -------------------------------------------------------
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+limiter = Limiter(key_func=get_remote_address)
+
 def create_admin_if_not_exists():
     """Create admin user on first startup if not already present."""
     try:
@@ -184,6 +190,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # -------------------------------------------------------
 # Middleware: correlation ID + metrics
 # -------------------------------------------------------
@@ -213,7 +222,7 @@ async def observability_middleware(request: Request, call_next):
     return response
 
 # -------------------------------------------------------
-# Health endpoints (split liveness from readiness)
+# Health endpoints
 # -------------------------------------------------------
 @app.get("/health/live", tags=["Health"])
 def liveness():
@@ -259,11 +268,12 @@ def metrics():
 # Authentication
 # -------------------------------------------------------
 @app.post("/v1/login", response_model=Token, tags=["Authentication"])
-def login(request: LoginRequest):
+@limiter.limit("5/minute")
+def login(request: Request, body: LoginRequest):
     """Authenticate and return a JWT bearer token."""
     try:
         with get_db_connection() as conn:
-            user = authenticate_user(request.username, request.password, conn)
+            user = authenticate_user(body.username, body.password, conn)
 
         if not user:
             raise HTTPException(

@@ -270,3 +270,22 @@ def test_correlation_id_propagated():
         timeout=5,
     )
     assert response.headers.get("x-correlation-id") == client_id
+
+def test_login_rate_limit_enforced():
+    """
+    Brute force protection - after 5 failed login attempts in one minute the API must return 429 Too Many Requests.
+    This confirms slowapi rate limiting is active on /v1/login.
+    """
+    for _ in range(5):
+        requests.post(
+            f"{API_URL}/v1/login",
+            json={"username": "wrong", "password": "wrong"},
+            timeout=10,
+        )
+
+    response = requests.post(
+        f"{API_URL}/v1/login",
+        json={"username": "wrong", "password": "wrong"},
+        timeout=10,
+    )
+    assert response.status_code == 429, f"Expected 429, got {response.status_code}"

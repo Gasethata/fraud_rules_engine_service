@@ -272,20 +272,69 @@ def test_correlation_id_propagated():
     assert response.headers.get("x-correlation-id") == client_id
 
 def test_login_rate_limit_enforced():
-    """
-    Brute force protection - after 5 failed login attempts in one minute the API must return 429 Too Many Requests.
-    This confirms slowapi rate limiting is active on /v1/login.
-    """
+    """Brute force protection - after 5 failed login attempts in one minute the API must return 429 Too Many Requests.
+    This confirms slowapi rate limiting is active on /v1/login."""
     for _ in range(5):
         requests.post(
             f"{API_URL}/v1/login",
-            json={"username": "wrong", "password": "wrong"},
+            json={"username": "test", "password": "test"},
             timeout=10,
         )
 
     response = requests.post(
         f"{API_URL}/v1/login",
-        json={"username": "wrong", "password": "wrong"},
+        json={"username": "test", "password": "test"},
         timeout=10,
     )
     assert response.status_code == 429, f"Expected 429, got {response.status_code}"
+
+def test_dynamic_rule_reloading():
+    """Verifies the fraud engine reloads rules dynamically without restarting.
+    Inserts a new rule directly into the DB, waits for the reload interval,
+    then publishes a transaction that only the new rule would flag."""
+    # Insert a temporary test rule directly into the DB
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO fraud_rules (description, field, condition, threshold, action, is_active)
+                VALUES ('Dynamic reload test rule', 'amt', '>', 1, 'flag', true)
+                RETURNING id
+            """)
+            rule_id = cur.fetchone()["id"]
+        conn.commit()
+
+    # Wait for the engine to reload rules (interval is 30s)
+    time.sleep(40)
+
+    # Publish a transaction that triggers the new rule
+    test_transaction = {
+        "trans_num": "dynamic-reload-test-001",
+        "trans_date_trans_time": "2020-12-26 02:00:00",
+        "cc_num": "8888888888888888",
+        "merchant": "Test",
+        "category": "misc_net",
+        "amt": 2.00,   # above threshold of 1 to ensure the rule is triggered
+        "first": "Dynamic",
+        "last": "Test",
+    }
+
+    # Clean up any previous run
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM flagged_transactions WHERE transaction_id = %s",
+                    (test_transaction["trans_num"],))
+            cur.execute("DELETE FROM transactions WHERE transaction_id = %s",
+                    (test_transaction["trans_num"],))
+        conn.commit()
+
+    publish_transaction(test_transaction)
+
+    flagged = wait_for_flag(test_transaction["trans_num"], timeout=30)
+
+    # Clean up the test rule
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM fraud_rules WHERE id = %s", (rule_id,))
+        conn.commit()
+
+    assert flagged, "Engine did not pick up the dynamically loaded rule within the reload interval"

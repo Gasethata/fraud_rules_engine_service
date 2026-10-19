@@ -14,6 +14,8 @@ import os
 import signal
 import logging
 import json
+import time
+import threading
 from datetime import datetime
 
 from psycopg2.extras import RealDictCursor
@@ -42,6 +44,21 @@ handler.setFormatter(StructuredFormatter())
 logging.basicConfig(level=logging.INFO, handlers=[handler])
 logger = logging.getLogger(__name__)
 
+def reload_rules(engine, repo, shutdown_requested, interval=30):
+    """Background thread that reloads fraud rules from the DB every 30 seconds.
+    Allows rule changes to take effect without restarting the consumer."""
+    def _reload():
+        while not shutdown_requested["value"]:
+            time.sleep(interval)
+            try:
+                new_rules = repo.fetch_active_rules()
+                engine.rules = new_rules
+                logger.info("Fraud rules reloaded", extra={"rule_count": len(new_rules)})
+            except Exception as e:
+                logger.error("Failed to reload rules", extra={"error": str(e)})
+
+    thread = threading.Thread(target=_reload, daemon=True)
+    thread.start()
 
 def main():
     host = os.getenv("HOST")
@@ -68,13 +85,10 @@ def main():
 
     engine = FraudEngine(rules, repo)
 
-    # -------------------------------------------------------
     # Graceful shutdown handler
-    # -------------------------------------------------------
-    # Docker sends SIGTERM on `docker stop`. Without this handler the process
-    # is killed immediately, potentially mid-transaction. This flag lets the
-    # main loop finish its current transaction before exiting cleanly.
     shutdown_requested = {"value": False}
+
+    reload_rules(engine, repo, shutdown_requested, interval=30)
 
     def handle_shutdown(signum, frame):
         logger.info("Shutdown signal received, finishing current transaction before exit")

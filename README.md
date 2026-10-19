@@ -13,17 +13,22 @@ The system is designed to demonstrate:
 - Micro-services
 - Containerized deployment
 - Unit and Integration testing strategy
+- CI/CD pipeline with unit, integration, and security scan jobs
 
 ### Architecture
 This engine is microservices and every service runs on its own container.
 Below are all the containers, and all run through a `docker compose` for multi-services control. 
 
-- api (creates a REST API using FastAPI)
-- postgres (from the database folder - creates a PostgreSQL database)
-- broker (creates Kafka single note cluster)
-- topic (from the kafka_broker folder - creates a topic in the above Kafka broker)
-- consumer (from fraud_engine folder - consumes transactions from the above Kafka topic)
-- producer (from transactuions_producer folder - publishes transactions from upstream into Kafka topic)
+
+| Container | Folder | Role |
+|---|---|---|
+| `api` | `api/` | FastAPI REST layer - serves flagged transactions |
+| `postgres` | `database/` | PostgreSQL - stores transactions, rules, and flags |
+| `broker` | `kafka_broker/` | Kafka single-node cluster |
+| `topic` | `kafka_broker/` | Creates a topic in the above Kafka broker |
+| `consumer` | `fraud_engine/` | Consumes transactions from the above Kafka topic |
+| `producer` | `transactions_producer/` | Publishes simulated transactions into Kafka topic|
+|
 
 ### Components
 
@@ -35,19 +40,24 @@ Below are all the containers, and all run through a `docker compose` for multi-s
 
 ### Technology Stack
 
-| Component        | Technology                                  |
-|------------------|---------------------------------------------|
-| Language         | Python 3.11+                                |
-| Event Streaming  | Apache Kafka                                |
-| Database         | PostgreSQL 17+                              |
-| ORM / DB Access  | psycopg2                                    |
-| API Framework    | FastAPI                                     |
-| Testing          | Pytest                                      |
-| Containerization | Docker (27.5.1+) & Docker Compose (2.32.4+) |
+| Component        | Technology                                   |
+|------------------|----------------------------------------------|
+| Language         | Python v3.11+                                |
+| Event Streaming  | Apache Kafka v2.15.1                         |
+| Database         | PostgreSQL v17+                              |
+| ORM / DB Access  | psycopg2 v2.9.13                             |
+| API Framework    | FastAPI v0.104.1                             |
+| Auth             | JWT + bcrypt v4.0.1                         |   
+| Metrics	       | Prometheus v0.19.0                           |
+| Resilience	   | Tenacity v8.2.3                              |
+| Testing          | Pytest v7.4.3                                |
+| Containerization | Docker v27.5.1+ & Docker Compose v2.32.4+    |
+| CI/CD	           | GitHub Actions |
+|
 
 ## How It Works
 
-### Transaction Ingestion
+### 1. Transaction Ingestion
 This is done in the `transaction_producer` container.
 The producer is fed a simulated transaction data from `transaction_producer/data/testdata.csv`
 This data was extracted from Kaggle dataset as described below. 
@@ -65,227 +75,254 @@ Each transaction includes fields such as:
 
 The Fraud Engine subscribes to this topic as a consumer.
 
-### Rule Evaluation
+### 2. Rule Evaluation
 
-When a transaction is consumed:
+When the fraud engine consumes a transaction:
 
-1. The transaction is saved to the  `transactions` database table for audit and historical ppurposes.
-2. Context is built for rule evaluation (e.g - calculate hours, weeks, time).
-3. All fraud rules are retrieved from the database.
-4. Each rule is evaluated dynamically.
-5. Triggered rules are collected.
-6. If rules trigger, record is inserted into `flagged_transactions` table of the database.
+1. Context is pre-built (hour of day, weekend flag) once before rule evaluation.
+2. All active rules are fetched from the database at startup.
+3. Each rule is evaluated via an operator map - adding a new rule type never touches the core processing loop.
+4. Triggered rules are collected.
+5. If rules triggered: the transaction and its flag record are written atomically in one database commit.
+6. If no rules triggered: the transaction is saved for audit purposes only.
 
-Rules are stored in the database during database initialization and include the below columns:
+Rules are stored in `database/db/init/fraud_rules.csv`, loaded by `database/db/init/2load_rules.sql` at database initialisation. Modifying rules requires no code changes.
 
-- field
-- condition
-- threshold
-- action
-- description
+### 3. Database Layer
 
-This allows dynamic rule modification without changing application code.
+| Table | Purpose |
+|---|---|
+| `transactions` | All processed transactions (flagged and clean) |
+| `flagged_transactions` | Transactions that triggered one or more rules |
+| `fraud_rules` | Configurable fraud detection rules |
+| `users` | API admin users |
+|
 
-The rules are in a file called `database/db/init/fraud_rules.csv`.
-The other two files are for creating the schema `database/db/init/1schema.sql` and loading the rules `database/db/init/2load_rules.sql`.
+Indexes are defined on high-query columns:
 
-### Database Layer
+- Composite index on `(cc_num, trans_date_trans_time DESC)` - primary fraud rule query pattern
+- Index on `trans_date_trans_time DESC` - time-range queries
+- Index on `category` - category-based rules
+- Index on `flagged_transactions(transaction_id)` and `flagged_at DESC` - API lookups
 
-Two main tables:
+### 4. API Layer
 
-#### transactions
-Stores all processed transactions (only useful columns are targeted for persistence). 
+A JWT-secured FastAPI service exposes flagged transactions. Routes are versioned under `/v1/`.
 
-#### flagged_transactions
-Stores only transactions that triggered fraud rules.
+## Setup
 
-Each flagged record contains:
+### Prerequisites
 
-- transaction_id
-- rule_ids
-- reason
-- timestamp
+- Docker 27.5.1+
+- Docker Compose 2.32.4+
+- Python 3.11+ (for running tests locally)
 
-#### API Layer
+### Environment Configuration
 
-The FastAPI exposes endpoints such as:
-
-- GET /flagged
-- GET /flagged/{transaction_id}
-
-These endpoints allow:
-
-- Retrieval of all flagged transactions
-- Lookup by transaction ID
-
-This enables visibility into detected fraud transactions.
-
-## How to Build
-
-### Clone Repository
-
-```
-    git clone <repo-url>
-    cd <project-folder>
+```bash
+cp sample.env .env
 ```
 
-### Build Containers
-Make sure that this variable `HOST=` in the .env is set to the host's IP address. This is to make sure that all the services are reachable through thier ports on the the host machine
+Edit `.env` and fill in all values.
 
-```
-    docker compose build
-```
-
-## How to Run
-### Start all Services
-
-This ensures that the transactions publication simulation is activated.
-
-```
-    docker compose up -d
+Generate a strong JWT secret and set it in the `.env` file:
+```bash
+openssl rand -hex 32
 ```
 
-This will start Kafka Producer -> Kafka -> Fraud Engine + Kafka Consumer -> PostgreSQL -> API
+### Build
 
-### View logs
-
-```
-    docker compose logs -f transaction_consumer
+```bash
+docker compose build
 ```
 
-## View the Results
-### Use the API to retrieve the flagged transactions
-Built with FastAPI, JWT authentication, and retrieving the data from the a PostgreSQL database table.
+### Run
 
-- Framework: FastAPI (Python 3.11)
-- Authentication: JWT tokens with bcrypt password hashing
-- Database: PostgreSQL with psycopg2
-
-Below are the variables used for the API, they are set in the .env file, they can be changed as per your needs.
-Admin User (created automatically on startup)
-```
-ADMIN_USERNAME=
-ADMIN_PASSWORD=
+```bash
+docker compose up -d
 ```
 
-JWT Configuration
+Start order: Kafka > topic init > Fraud Engine > PostgreSQL > API > Producer
+
+To start without the producer (e.g. for integration testing):
+```bash
+docker compose up --scale transaction_producer=0 -d
 ```
-JWT_SECRET=
-ACCESS_TOKEN_EXPIRE_MINUTES=
+
+### View Logs
+
+```bash
+docker compose logs -f <service name>
 ```
 
-#### Through the web
-Currently running locally but can be set to run at a specific host
+---
+
+
+
+## API Reference
+
+Base URL: `http://localhost:8000`
+
+Interactive docs: `http://localhost:8000/docs`
+
+
+#### Endpoints
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/health/live` | No | Liveness probe - is the service running? |
+| GET | `/health/ready` | No | Readiness probe - is the database reachable? |
+| GET | `/metrics` | No | Prometheus metrics |
+| POST | `/v1/login` | No | Authenticate, returns JWT |
+| GET | `/v1/flagged` | Yes | Paginated list of flagged transactions |
+| GET | `/v1/flagged/{transaction_id}` | Yes | Single flagged transaction by ID |
+|
+
+#### Authentication
+
+All transaction endpoints require a JWT Bearer token. Login first:
+
+```bash
+curl -X POST http://localhost:8000/v1/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "<ADMIN_USERNAME>", "password": "<ADMIN_PASSWORD>"}'
 ```
-http://localhost:8000/docs
+Note that this can also be done on the swagger UI via the login endpoint.
+
+Use the returned `access_token` as `Authorization: Bearer <token>` on protected requests.
+
+#### Paginated Response — `/v1/flagged`
+
+```json
+{
+  "total": <total flagged transactions>,
+  "limit": <limit per page>,
+  "offset": <offset>,
+  "items": [...]
+}
 ```
-##### Login to get the token
-```
-Endpoint: POST /login
-```
-Click on ```Try it out``` and you should see the request body with username and password. Enter the ADMIN_USERNAME and ADMIN_PASSWORD configured in the .env then click ```Execute```.
-The response will be a access_token and a token_type.
 
-##### Use the token to authenticate the request
-Copy the token generated above.
+Use `?limit=50&offset=100` to page through results.
 
-##### Use the Swagger UI
-
-Click the "Authorize" button at the top right.
-Enter your token in the format: `Bearer <your-token>` or just the token.
-Click "Authorize" and then "Close".
-Now you can test protected endpoints directly from the UI.
-
-###### Protected Endpoints (Require Authentication)
-
-- `GET	/flagged`	                 Get all flagged transactions (with pagination at 100). 
-Click on ```Try it out``` the ```Execute```, the response should be all the flagged transactions in json format.
-- `GET	/flagged/{transaction_id}`   Get specific transaction by ID
-Click on ```Try it out```, enter the transaction ID then click ```Execute```. The response should be the transaction details of the ID you entered.
-
-###### Public Endpoints
-
-- `POST	/login`	    Authenticate and get JWT token
-- `GET	/health`	Health check endpoint
-
-#### Through the command-line interface
+#### Command-line interface examples
 
 ```
 # 1. Login
-curl -X POST http://localhost:8000/login \
+curl -X POST http://localhost:8000/v1/login \
   -H "Content-Type: application/json" \
   -d '{"username": "<user>", "password": "<password>"}'
 
-# 2. Get flagged transactions (using the token)
-curl -X GET http://localhost:8000/flagged \
-  -H "Authorization: Bearer <the token here>"
+# 2. Get flagged transactions
+curl -X GET http://localhost:8000/v1/flagged?limit=50&offset=0" \
+  -H "Authorization: Bearer <token>"
 
 # 3. Get specific transaction
-curl -X GET http://localhost:8000/flagged/<transaction_id> \
+curl -X GET http://localhost:8000/v1/flagged/<transaction_id> \
   -H "Authorization: Bearer <the token here>"
 ```
-
-### Directly from the Database
+### Database direct access
 
 ```
-    docker exec -it postgres psql -U postgres -d frauddb
-    SELECT * FROM flagged_transactions;
+    docker exec -it fraud_database psql -U <POSTGRES_USER> -d frauddb
+    SELECT * FROM flagged_transactions ORDER BY flagged_at DESC LIMIT 10;
 ```
 
 
 ## Testing
-The project implements a layered testing strategy to validate both:
 
-- Business logic correctness (Unit Tests)
-- End-to-end system behavior (Integration Tests)
+### Setup
 
-The system under test follows this architecture:
-
-Kafka → Fraud Engine (Consumer) → PostgreSQL
-
-Testing is structured to reflect this separation of concerns:
-
-- **Unit Tests** validate fraud rule logic in isolation.
-- **Integration Tests** validate full pipeline execution using real services.
-
-#### Testing Structure
-- pytest.ini *(pytest path setup and markers)*
-- tests/unit/test_engine.py
-- tests/integration/integration_test.py
-
-#### Setup For Tests
-Create virtual environment to install dependencies and acticate it. Then install all the requirements
-```
-    python3 -m venv venv
-    source venv/bin/activate
-    pip install -r tests/requirements.txt
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r tests/requirements.txt
 ```
 
-### Running Tests
-#### Run Unit Tests
-- These test uses mocks to simulate the expected behaviour.
-- They are running from `test/unit/unit_test.py`
+### Unit Tests
+
+Tests fraud rule logic in isolation using a `MockRepo`
+
+```bash
+pytest -m unit --cov=fraud_engine.engine
+```
+Expected: 9 tests passing on `engine.py`.
+
+### Integration Tests
+
+Tests the full pipeline against real running services.
+
+```bash
+# Start the stack without the producer
+docker compose up --scale transaction_producer=0 --build -d
+
+# Wait ~15 seconds for services to initialise, then run
+pytest -m integration -v
+```
+
+If you ran the stack previously, clear state first:
+```bash
+docker compose down -v
+```
+
+Expected: 11 tests passing, covering health endpoints, authentication, full pipeline (publish > consume > flag > retrieve), pagination, metrics, and correlation ID propagation.
+
+### Test Structure
 
 ```
-    pytest -m unit --cov=fraud_engine.engine
+tests/
+├── requirements.txt
+├── unit/
+│   └── unit_test.py        # Rule operator tests with MockRepo
+└── integration/
+    └── integration_test.py # Full pipeline + API endpoint tests
 ```
 
-#### Run Integration Tests
-- Make sure the pipeline was not pre-build (was not ran before testing else containers will have cache data)
-- If the containers were ran before the tests, then make sure to remove them with ```docker compose down -v```
-- This test does not show coverage as it run outside Pytest, and test intergration of individual components
-- The teste are running from `test/integration/integration_test.py`
-```
-    docker compose up --scale transaction_producer=0 --build -d
-    pytest -m integration -v
-```
+---
 
+## CI/CD
 
+GitHub Actions pipeline at `.github/workflows/ci-cd.yml`.
+
+**Triggers:** push to `main` or `develop`, pull requests to `main`.
+
+**Jobs:**
+
+| Job | When | What |
+|---|---|---|
+| `test` | Every push/PR | Unit tests + coverage |
+| `integration` | Push only | Full stack integration tests |
+| `security` | Every push/PR | Trivy CVE scan (CRITICAL/HIGH) |
+
+**Required GitHub Secrets:**
+
+Add these under repo Settings > Secrets and variables > Actions:
+
+- `KAFKA_CLUSTER_ID`
+- `POSTGRES_USER`
+- `POSTGRES_PASSWORD`
+- `ADMIN_USERNAME`
+- `ADMIN_PASSWORD`
+- `JWT_SECRET`
+
+---
 ## Dataset Used
 
 This is a simulated credit card transaction dataset containing legitimate and fraud transactions from the duration 1st Jan 2019 - 31st Dec 2020. It covers credit cards of 1000 customers doing transactions with a pool of 800 merchants.
 
 Link: *https://www.kaggle.com/datasets/kartik2112/fraud-detection?resource=download&select=fraudTrain.csv*
+
+## Assumptions
+
+The following are the assumptions taken during the development of the service:
+
+| Assumption | Decision Made |
+|---|---|
+| Single admin user | Only one API user is needed - created automatically at startup |
+| Rules are static at runtime | Fraud rules are loaded once at startup |
+| All services on one host | Docker Compose assumes co-location |
+| Transactions are append-only | No update or delete of transaction records |
+| Rule evaluation is synchronous | Each transaction is evaluated in-process, not offloaded to a worker |
+| Dataset is pre-existing | Transactions come from a CSV file, not a live payment system |
 
 
 

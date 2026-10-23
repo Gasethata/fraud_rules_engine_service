@@ -7,10 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  # -------------------------------------------------------
-  # Job 1: Unit tests and coverage
-  # Runs fast on every push and pull request - uses mocks.
-  # -------------------------------------------------------
+  # Job 1: Unit tests and coverage. Runs on every push and pull request - uses mocks.
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -35,10 +32,7 @@ jobs:
           file: ./coverage.xml
         continue-on-error: true  # don't fail the build if codecov is unavailable
 
-  # -------------------------------------------------------
-  # Job 2: Integration tests
-  # Spins up the full stack via Docker Compose - Runs only on push
-  # -------------------------------------------------------
+  # Job 2: Integration tests. Spins up the full stack via Docker Compose - Runs only on push
   integration:
     name: Integration Tests
     runs-on: ubuntu-latest
@@ -74,7 +68,7 @@ jobs:
       - name: Build Docker images
         run: docker compose build
 
-      - name: Start services (without producer — seeded by integration test)
+      - name: Start services (without producer - For Integration testing)
         run: |
           docker compose up --scale transaction_producer=0 -d
             echo "Waiting for API..."
@@ -102,10 +96,7 @@ jobs:
         if: always()
         run: docker compose down -v
 
-  # -------------------------------------------------------
-  # Job 3: Security scan
-  # Scans the filesystem for known CVEs using Trivy - Runs in parallel with unit tests.
-  # -------------------------------------------------------
+  # Job 3: Security scan. Scans the filesystem for known Common Vulnerabilities and Exposures (CVE) using Trivy - Runs in parallel with unit tests.
   security:
     name: Security Scan
     runs-on: ubuntu-latest

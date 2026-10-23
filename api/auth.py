@@ -26,7 +26,7 @@ if not SECRET_KEY:
     raise ValueError("JWT_SECRET environment variable is not set")
 
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "600"))  # set to 24 hours in the env file
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "600"))  # defaulted to 24 hours in the env file
 
 security = HTTPBearer(auto_error=False) 
 
@@ -48,7 +48,6 @@ def create_access_token(data: Dict[str, Any]) -> str:
 
 def authenticate_user(username: str, password: str, connection) -> Optional[Dict[str, Any]]:
     """Authenticate user and return user info if valid"""
-
     with connection as conn:
         with conn.cursor() as cur:
             # get the user from the db
@@ -61,7 +60,7 @@ def authenticate_user(username: str, password: str, connection) -> Optional[Dict
             if not user:
                 return None
 
-            # user is a dict as we using RealDictCursor
+            # user is a dict as RealDictCursor is used
             user_id = user["id"]
             db_username = user["username"]
             hashed_password = user["hashed_password"]

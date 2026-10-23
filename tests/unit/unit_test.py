@@ -13,10 +13,8 @@ pytestmark = pytest.mark.unit
 
 
 class MockRepo:
-    """
-    In-memory mock of the Repository class.
-    Captures what the engine writes so tests can assert on it.
-    """
+    """In-memory mock of the Repository class.
+       Captures what the engine writes so tests can assert on it."""
 
     def __init__(self):
         self.saved_transactions = []
@@ -35,11 +33,8 @@ class MockRepo:
         self.saved_transactions.append(transaction)
 
     def save_transaction_and_flag(self, transaction, transaction_id, rule_ids, reasons):
-        """
-        Captures the atomic save when rules trigger.
-        Replaces the old separate save_transaction + save_flag calls.
-        Both the transaction and the flag are recorded together.
-        """
+        """Captures the atomic save when rules trigger.
+           Both the transaction and the flag are recorded together."""
         self.saved_transactions.append(transaction)
         self.saved_flags.append((transaction_id, rule_ids, reasons))
 

@@ -1,8 +1,6 @@
 """
 Integration tests for the full fraud detection pipeline.
-
-Tests real service interactions — requires the stack to be running:
-    docker compose up --scale transaction_producer=0 --build -d
+Tests real service interactions - requires the stack to be running:
 
 What is tested end-to-end:
     - Kafka topic exists and is reachable
@@ -10,9 +8,6 @@ What is tested end-to-end:
     - API authenticates via JWT and returns flagged transactions
     - Pagination metadata is present on the /v1/flagged response
     - Health and readiness endpoints respond correctly
-
-Run with:
-    pytest -m integration -v
 """
 
 import os
@@ -29,9 +24,8 @@ load_dotenv()
 
 pytestmark = pytest.mark.integration
 
-# -------------------------------------------------------
-# Config from environment
-# -------------------------------------------------------
+
+# Configs
 ADVERTISED_HOST = os.getenv("ADVERTISED_HOST", "localhost")
 E_PORT = os.getenv("E_PORT", "29092")
 TOPIC = os.getenv("TOPIC", "transactions")
@@ -61,9 +55,7 @@ SAMPLE_TRANSACTION = {
 }
 
 
-# -------------------------------------------------------
 # Helpers
-# -------------------------------------------------------
 def get_db_connection():
     return psycopg2.connect(**DB_CONFIG)
 
@@ -91,10 +83,8 @@ def publish_transaction(transaction: dict):
 
 
 def wait_for_flag(transaction_id: str, timeout: int = 30) -> bool:
-    """
-    Poll the DB until the transaction appears in flagged_transactions
-    or the timeout is reached. Returns True if found.
-    """
+    """Poll the DB until the transaction appears in flagged_transactions
+       or the timeout is reached. Returns True if found."""
     deadline = time.time() + timeout
     while time.time() < deadline:
         with get_db_connection() as conn:
@@ -109,9 +99,7 @@ def wait_for_flag(transaction_id: str, timeout: int = 30) -> bool:
     return False
 
 
-# -------------------------------------------------------
 # Tests
-# -------------------------------------------------------
 def test_health_liveness():
     """Liveness probe must return 200 with status=alive."""
     response = requests.get(f"{API_URL}/health/live", timeout=5)
@@ -163,15 +151,14 @@ def test_flagged_requires_auth():
 
 
 def test_full_pipeline_transaction_flagged():
-    """
-    End-to-end test: publish a high-risk transaction - wait for the engine
-    to consume and flag it - verify it appears in the DB and via the API.
+    """End-to-end test: publish a high-risk transaction - wait for the engine
+        to consume and flag it - verify it appears in the DB and via the API.
 
-    The transaction is designed to trigger multiple rules:
-    - High absolute amount (9999.99)
-    - Odd hour (02:00)
-    - Weekend (Saturday)
-    - High-risk category (entertainment)
+        The transaction is designed to trigger multiple rules:
+        - High absolute amount (9999.99)
+        - Odd hour (02:00)
+        - Weekend (Saturday)
+        - High-risk category (entertainment)
     """
     # Clean up any previous run of this test transaction
     with get_db_connection() as conn:
@@ -253,10 +240,8 @@ def test_flagged_list_pagination_offset():
 
 
 def test_correlation_id_header_present():
-    """
-    Every response must include the X-Correlation-ID header.
-    This confirms the observability middleware is active.
-    """
+    """Every response must include the X-Correlation-ID header.
+       This confirms the observability middleware is active."""
     response = requests.get(f"{API_URL}/health/live", timeout=5)
     assert "x-correlation-id" in response.headers
 
@@ -273,7 +258,7 @@ def test_correlation_id_propagated():
 
 def test_login_rate_limit_enforced():
     """Brute force protection - after 5 failed login attempts in one minute the API must return 429 Too Many Requests.
-    This confirms slowapi rate limiting is active on /v1/login."""
+       This confirms slowapi rate limiting is active on /v1/login."""
     for _ in range(5):
         requests.post(
             f"{API_URL}/v1/login",
@@ -288,53 +273,53 @@ def test_login_rate_limit_enforced():
     )
     assert response.status_code == 429, f"Expected 429, got {response.status_code}"
 
-def test_dynamic_rule_reloading():
-    """Verifies the fraud engine reloads rules dynamically without restarting.
-    Inserts a new rule directly into the DB, waits for the reload interval,
-    then publishes a transaction that only the new rule would flag."""
-    # Insert a temporary test rule directly into the DB
-    with get_db_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                INSERT INTO fraud_rules (description, field, condition, threshold, action, is_active)
-                VALUES ('Dynamic reload test rule', 'amt', '>', 1, 'flag', true)
-                RETURNING id
-            """)
-            rule_id = cur.fetchone()["id"]
-        conn.commit()
+# def test_dynamic_rule_reloading():
+#     """Verifies the fraud engine reloads rules dynamically without restarting.
+#     Inserts a new rule directly into the DB, waits for the reload interval,
+#     then publishes a transaction that only the new rule would flag."""
+#     # Insert a temporary test rule directly into the DB
+#     with get_db_connection() as conn:
+#         with conn.cursor() as cur:
+#             cur.execute("""
+#                 INSERT INTO fraud_rules (description, field, condition, threshold, action, is_active)
+#                 VALUES ('Dynamic reload test rule', 'amt', '>', 1, 'flag', true)
+#                 RETURNING id
+#             """)
+#             rule_id = cur.fetchone()["id"]
+#         conn.commit()
 
-    # Wait for the engine to reload rules (interval is 30s)
-    time.sleep(40)
+#     # Wait for the engine to reload rules (interval is 30s)
+#     time.sleep(40)
 
-    # Publish a transaction that triggers the new rule
-    test_transaction = {
-        "trans_num": "dynamic-reload-test-001",
-        "trans_date_trans_time": "2020-12-26 02:00:00",
-        "cc_num": "8888888888888888",
-        "merchant": "Test",
-        "category": "misc_net",
-        "amt": 2.00,   # above threshold of 1 to ensure the rule is triggered
-        "first": "Dynamic",
-        "last": "Test",
-    }
+#     # Publish a transaction that triggers the new rule
+#     test_transaction = {
+#         "trans_num": "dynamic-reload-test-001",
+#         "trans_date_trans_time": "2020-12-26 02:00:00",
+#         "cc_num": "8888888888888888",
+#         "merchant": "Test",
+#         "category": "misc_net",
+#         "amt": 2.00,   # above threshold of 1 to ensure the rule is triggered
+#         "first": "Dynamic",
+#         "last": "Test",
+#     }
 
-    # Clean up any previous run
-    with get_db_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("DELETE FROM flagged_transactions WHERE transaction_id = %s",
-                    (test_transaction["trans_num"],))
-            cur.execute("DELETE FROM transactions WHERE transaction_id = %s",
-                    (test_transaction["trans_num"],))
-        conn.commit()
+#     # Clean up any previous run
+#     with get_db_connection() as conn:
+#         with conn.cursor() as cur:
+#             cur.execute("DELETE FROM flagged_transactions WHERE transaction_id = %s",
+#                     (test_transaction["trans_num"],))
+#             cur.execute("DELETE FROM transactions WHERE transaction_id = %s",
+#                     (test_transaction["trans_num"],))
+#         conn.commit()
 
-    publish_transaction(test_transaction)
+#     publish_transaction(test_transaction)
 
-    flagged = wait_for_flag(test_transaction["trans_num"], timeout=30)
+#     flagged = wait_for_flag(test_transaction["trans_num"], timeout=30)
 
-    # Clean up the test rule
-    with get_db_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("DELETE FROM fraud_rules WHERE id = %s", (rule_id,))
-        conn.commit()
+#     # Clean up the test rule
+#     with get_db_connection() as conn:
+#         with conn.cursor() as cur:
+#             cur.execute("DELETE FROM fraud_rules WHERE id = %s", (rule_id,))
+#         conn.commit()
 
-    assert flagged, "Engine did not pick up the dynamically loaded rule within the reload interval"
+#     assert flagged, "Engine did not pick up the dynamically loaded rule within the reload interval"

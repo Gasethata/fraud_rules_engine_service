@@ -1,3 +1,11 @@
+"""
+Fraud Rule Evaluation Engine.
+
+- Evaluates incoming transactions against a set of configurable fraud rules loaded from the database at startup. 
+- Rules are applied using an operator map that maps condition to evaluation methods
+- Adding a new rule type requires adding one method and one entry to the operator map, withoutmodifying the core processing logic.
+"""
+
 import ast
 import logging
 from datetime import datetime
@@ -6,15 +14,13 @@ logger = logging.getLogger(__name__)
 
 
 class FraudEngine:
-    """Fraud engine — evaluates all active rules against each transaction."""
+    """Fraud engine - evaluates all active rules against each transaction."""
 
     def __init__(self, rules, repository):
         self.rules = rules
         self.repo = repository
 
-        # Operator map: maps condition strings to evaluation methods.
-        # Adding a new rule type means adding one entry here and one method —
-        # the process() method never needs to change. (Open/Closed Principle)
+        # Operator map: maps condition to evaluation methods.
         self.operators = {
             ">": self._greater_than,
             "IN": self._in_operator,
@@ -24,17 +30,7 @@ class FraudEngine:
         }
 
     def process(self, transaction):
-        """
-        Evaluate all rules against a transaction.
-
-        Flow:
-        1. Build context (precompute reusable facts like hour and weekend flag).
-        2. Evaluate every rule using the operator map.
-        3. Collect all triggered rules.
-        4. If rules triggered: atomically save the transaction and the flag
-           in one commit so there is never an unflagged orphan record.
-        5. If no rules triggered: save the transaction only for audit purposes.
-        """
+        """Evaluate all rules against a transaction."""
         context = self._build_context(transaction)
         triggered = []
 
@@ -48,8 +44,7 @@ class FraudEngine:
         if triggered:
             rule_ids = [r["id"] for r in triggered]
             reasons = [r["description"] for r in triggered]
-            # Atomic: both the transaction record and the flag are committed
-            # together. If either fails, both roll back — no inconsistent state.
+            # Atomic: both the transaction record and the flag are committed together. If either fails, both roll back
             self.repo.save_transaction_and_flag(
                 transaction, transaction_id, rule_ids, reasons
             )
@@ -67,10 +62,7 @@ class FraudEngine:
 
         return triggered
 
-    # ------------------------------------------------------------------
     # Context builder
-    # ------------------------------------------------------------------
-
     def _build_context(self, transaction):
         """Pre-compute reusable facts once before the rule loop."""
         return {
@@ -86,13 +78,9 @@ class FraudEngine:
         dt = datetime.strptime(transaction["trans_date_trans_time"], "%Y-%m-%d %H:%M:%S")
         return dt.weekday() >= 5
 
-    # ------------------------------------------------------------------
     # Rule operators
-    # ------------------------------------------------------------------
-
     def _greater_than(self, transaction, rule, context):
-        """Flag if the transaction amount exceeds the threshold.
-        Optionally restricted to weekend transactions only."""
+        """Flag if the transaction amount exceeds the threshold. Optionally restricted to weekend transactions only."""
         if float(transaction[rule["field"]]) <= float(rule["threshold"]):
             return False
         if rule.get("modifier") == "weekend":
@@ -140,6 +128,6 @@ class FraudEngine:
         if rule["modifier"]:
             allowed = category_sets.get(rule["modifier"], [])
         else:
-            # Only evaluate against known safe literal lists — not arbitrary input
+            # Only evaluate against known safe literal lists - not arbitrary input
             allowed = ast.literal_eval(rule["threshold"])
         return transaction[rule["field"]] in allowed

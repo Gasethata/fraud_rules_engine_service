@@ -34,10 +34,8 @@ class FlaggedTransaction(BaseModel):
         }
 
 class PaginatedFlaggedTransactions(BaseModel):
-    """
-    Wraps a list of flagged transactions with pagination metadata.
-    Consumers use total, limit, and offset to build next/previous page requests.
-    """
+    """Wraps a list of flagged transactions with pagination metadata.
+       Consumers use total, limit, and offset to build next/previous page requests."""
     total: int
     limit: int
     offset: int

@@ -6,11 +6,11 @@ Handles:
     - Connection pooling for database access
     - Startup initialization (admin user creation)
     - Authentication dependency injection
-    - Structured JSON logging with correlation IDs
+    - JSON logging
     - Prometheus metrics
 """
 
-import os
+import os, re
 import uuid
 import time
 import json
@@ -33,9 +33,8 @@ from slowapi.errors import RateLimitExceeded
 from schemas import Token, LoginRequest, FlaggedTransaction, PaginatedFlaggedTransactions
 from auth import authenticate_user, create_access_token, get_current_user
 
-# -------------------------------------------------------
-# Structured JSON logging
-# -------------------------------------------------------
+
+# JSON logging
 correlation_id_var: ContextVar[str] = ContextVar("correlation_id", default="")
 
 class StructuredFormatter(logging.Formatter):
@@ -57,9 +56,8 @@ handler.setFormatter(StructuredFormatter())
 logging.basicConfig(level=logging.INFO, handlers=[handler])
 logger = logging.getLogger(__name__)
 
-# -------------------------------------------------------
-# Secrets validation - fail fast on missing or default values
-# -------------------------------------------------------
+
+# Secrets validation
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 JWT_SECRET = os.getenv("JWT_SECRET")
@@ -67,22 +65,26 @@ JWT_SECRET = os.getenv("JWT_SECRET")
 if not ADMIN_USERNAME or not ADMIN_PASSWORD:
     raise ValueError("ADMIN_USERNAME and ADMIN_PASSWORD must be set")
 
+if len(ADMIN_PASSWORD) < 8:
+    raise ValueError("ADMIN_PASSWORD must be at least 8 characters long")
+
 if not JWT_SECRET or JWT_SECRET == "this_is-A_JwT_sEcret":
     raise ValueError("JWT_SECRET must be set to a strong random value (openssl rand -hex 32)")
 
-if ADMIN_PASSWORD == "admin":
-    raise ValueError("ADMIN_PASSWORD must not be a default value")
+if not JWT_SECRET or not re.fullmatch(r"[0-9a-fA-F]{64}", JWT_SECRET):
+    raise ValueError("JWT_SECRET must be set to a 32-byte hexadecimal secret."
+                     "Generate one using: openssl rand -hex 32")
 
-# -------------------------------------------------------
+
+
 # Database connection pool
-# -------------------------------------------------------
 db_config = {
     "host": os.getenv("POSTGRES_HOST"),
     "database": os.getenv("POSTGRES_DB"),
     "user": os.getenv("POSTGRES_USER"),
     "password": os.getenv("POSTGRES_PASSWORD"),
     "port": os.getenv("POSTGRES_PORT", "5432"),
-    "connect_timeout": 5,                        # fail fast if DB unreachable
+    "connect_timeout": 5,                        # fail if DB unreachable
     "options": "-c statement_timeout=30000",     # kill queries running over 30s
 }
 
@@ -90,8 +92,7 @@ for key, value in db_config.items():
     if key not in ("port", "connect_timeout", "options") and value is None:
         raise ValueError(f"Database configuration '{key}' is not set")
 
-# Pool initialised at module level — connections are reused across requests.
-# minconn=5 keeps connections warm; maxconn=20 caps total under load.
+# Connection pool initialised
 db_pool = pool.ThreadedConnectionPool(
     minconn=5,
     maxconn=20,
@@ -117,9 +118,8 @@ def get_db_connection():
         if conn:
             db_pool.putconn(conn)
 
-# -------------------------------------------------------
+
 # Prometheus metrics
-# -------------------------------------------------------
 REQUEST_COUNT = Counter(
     "api_requests_total",
     "Total API requests",
@@ -135,9 +135,8 @@ DB_POOL_AVAILABLE = Gauge(
     "Number of available connections in the pool",
 )
 
-# -------------------------------------------------------
+
 # Admin user seeding
-# -------------------------------------------------------
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 limiter = Limiter(key_func=get_remote_address)
@@ -165,9 +164,8 @@ def create_admin_if_not_exists():
         logger.error("Error creating admin user", extra={"error": str(e)})
         raise
 
-# -------------------------------------------------------
-# Application lifespan (replaces deprecated @app.on_event)
-# -------------------------------------------------------
+
+# Application lifespan
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting Fraud Rule Engine API")
@@ -178,9 +176,8 @@ async def lifespan(app: FastAPI):
     db_pool.closeall()
     logger.info("Database connection pool closed")
 
-# -------------------------------------------------------
+
 # FastAPI app
-# -------------------------------------------------------
 app = FastAPI(
     title="Fraud Rule Engine API",
     description="API for retrieving flagged fraud transactions",
@@ -193,9 +190,8 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# -------------------------------------------------------
+
 # Middleware: correlation ID + metrics
-# -------------------------------------------------------
 @app.middleware("http")
 async def observability_middleware(request: Request, call_next):
     # Propagate or generate correlation ID
@@ -221,26 +217,17 @@ async def observability_middleware(request: Request, call_next):
 
     return response
 
-# -------------------------------------------------------
+
 # Health endpoints
-# -------------------------------------------------------
 @app.get("/health/live", tags=["Health"])
 def liveness():
-    """
-    Liveness probe — confirms the process is running.
-    Used by container orchestrators to decide whether to restart the container.
-    Returns 200 as long as the process is alive.
-    """
+    """Check liveness - confirms the process is running."""
     return {"status": "alive", "service": "fraud-rule-engine", "version": "1.0.0"}
 
 
 @app.get("/health/ready", tags=["Health"])
 def readiness():
-    """
-    Readiness probe — confirms the service can handle traffic.
-    Checks the database connection. Returns 503 if the DB is unreachable.
-    Used by load balancers to decide whether to route traffic here.
-    """
+    """Check readiness - confirms the service can handle traffic."""
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cur:
@@ -256,17 +243,11 @@ def readiness():
 
 @app.get("/metrics", tags=["Observability"])
 def metrics():
-    """
-    Prometheus metrics endpoint.
-    Exposes request counts, durations, and DB pool stats for scraping.
-    """
+    """Prometheus metrics endpoint. Exposes request counts, durations, and DB pool stats for scraping."""
     DB_POOL_AVAILABLE.set(len(db_pool._pool))
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
-
-# -------------------------------------------------------
 # Authentication
-# -------------------------------------------------------
 @app.post("/v1/login", response_model=Token, tags=["Authentication"])
 @limiter.limit("5/minute")
 def login(request: Request, body: LoginRequest):
@@ -291,20 +272,10 @@ def login(request: Request, body: LoginRequest):
             detail="Database connection error",
         )
 
-
-# -------------------------------------------------------
 # Flagged transaction endpoints
-# -------------------------------------------------------
 @app.get("/v1/flagged", response_model=PaginatedFlaggedTransactions, tags=["Transactions"])
-def get_flagged_transactions(
-    current_user: str = Depends(get_current_user),
-    limit: int = 100,
-    offset: int = 0,
-):
-    """
-    Return a paginated list of flagged transactions.
-    Requires a valid JWT bearer token.
-    """
+def get_flagged_transactions(current_user: str = Depends(get_current_user), limit: int = 100, offset: int = 0,):
+    """Return a paginated list of flagged transactions. Requires authentication."""
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cur:
@@ -349,14 +320,8 @@ def get_flagged_transactions(
 
 
 @app.get("/v1/flagged/{transaction_id}", response_model=FlaggedTransaction, tags=["Transactions"])
-def get_flagged_transaction(
-    transaction_id: str,
-    current_user: str = Depends(get_current_user),
-):
-    """
-    Return a single flagged transaction by transaction ID.
-    Requires a valid JWT bearer token.
-    """
+def get_flagged_transaction(transaction_id: str, current_user: str = Depends(get_current_user),):
+    """Return a single flagged transaction by transaction ID. Requires authentication."""
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cur:

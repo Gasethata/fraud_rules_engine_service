@@ -13,13 +13,13 @@ import time
 import random
 from confluent_kafka import Consumer, KafkaError, KafkaException
 
-# Structured logging consistent with other services
-logging.basicConfig(
-    level=logging.INFO,
-    format='{"timestamp": "%(asctime)s", "level": "%(levelname)s", "service": "fraud-engine-consumer", "message": "%(message)s"}',
-    datefmt="%Y-%m-%dT%H:%M:%SZ",
-    handlers=[logging.StreamHandler(sys.stdout)],
-)
+# JSON logging
+# logging.basicConfig(
+#     level=logging.INFO,
+#     format='{"timestamp": "%(asctime)s", "level": "%(levelname)s", "service": "fraud-engine-consumer", "message": "%(message)s"}',
+#     datefmt="%Y-%m-%dT%H:%M:%SZ",
+#     handlers=[logging.StreamHandler(sys.stdout)],
+# )
 logger = logging.getLogger(__name__)
 
 

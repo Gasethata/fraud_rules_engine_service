@@ -9,17 +9,10 @@ Confluent Kafka Producer:
 from confluent_kafka import Producer
 import json, logging, sys
 
-# Structured JSON logging consistent with other services
-logging.basicConfig(
-    level=logging.INFO,
-    format='{"timestamp": "%(asctime)s", "level": "%(levelname)s", "service": "transaction-producer", "message": "%(message)s"}',
-    datefmt="%Y-%m-%dT%H:%M:%SZ",
-    handlers=[logging.StreamHandler(sys.stdout)],
-)
 logger = logging.getLogger(__name__)
 
 class TransactionProducer:
-    """Initialize the class"""
+    """Initialization"""
     def __init__(self, host: int, port: int, topic: str):
         self.topic = topic
         self.producer = Producer({'bootstrap.servers': f"{host}:{port}",

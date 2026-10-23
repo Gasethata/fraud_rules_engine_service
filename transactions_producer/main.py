@@ -7,6 +7,23 @@ import pandas as pd
 import time, sys, os, logging
 from kafka_producer import TransactionProducer
 
+# JSON logging
+class StructuredFormatter(logging.Formatter):
+    def format(self, record):
+        log_data = {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "level": record.levelname,
+            "service": "transaction-producer",
+            "message": record.getMessage(),
+            "logger": record.name,
+        }
+        if record.exc_info:
+            log_data["exception"] = self.formatException(record.exc_info)
+        return json.dumps(log_data)
+
+handler = logging.StreamHandler(sys.stdout)
+handler.setFormatter(StructuredFormatter())
+logging.basicConfig(level=logging.INFO, handlers=[handler])
 logger = logging.getLogger(__name__)
 
 def main():
